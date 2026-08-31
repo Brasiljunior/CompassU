@@ -1,40 +1,55 @@
 # CompassU Production Recovery
 
-## Verified production deployment
+## Verified production baseline
 
 - Vercel project: `compassu`
 - Framework: Next.js
 - Node.js: 24.x
-- Production deployment inspected: `dpl_Fsc3E4UBAN8mjjJf9Tn1srVs8oxw`
-- Deployment status: READY
-- Production alias: `compassu.vercel.app`
-- Build identified Next.js 15.5.24 and package version 0.3.0.
+- Verified deployed Next.js version: 15.5.24
+- Package version: `compassu@0.3.0`
+- Production deployment was READY before recovery work began.
 - Vercel reported only five deployment input files for the production build.
-- The Vercel project was not Git-linked when inspected.
+- The Vercel project was not linked to GitHub when recovery began.
 
-## Functionality verified from the deployed application
+## Recovered capabilities
 
-The production client implements:
+The readable source in this branch reconstructs the behavior observed in the verified production bundle:
 
-- CompassU landing page and authentication UI
+- landing page and authentication UI
 - Supabase email/password signup and login
-- User profiles and saved sessions
+- persistent browser session
 - 80-question assessment with autosaved responses
-- Assessment finalization through a Supabase RPC
-- Top major matches and match percentages
-- Trait-based major explanations
+- assessment finalization through `finalize_assessment`
+- top major matches and match percentages
+- trait-based major explanations
 - Career Explorer using occupation data
 - College Finder using institution/program data
-- Saved/favorite majors
-- Up-to-three-major comparison
-- Results email through the `send-results-email` Supabase Edge Function
-- Downloadable PDF report using jsPDF
-- Responsive and print layouts
+- saved/favorite majors
+- compare up to three majors
+- results email via the `send-results-email` Supabase Edge Function
+- downloadable jsPDF assessment report
+- responsive and print styling
 
-## Security note
+## Configuration
 
-No private API keys, Resend secrets, service-role keys, or Vercel environment-variable values should be committed to this repository. The production JavaScript contains only the Supabase publishable/anonymous browser credential expected for client-side use. Environment-specific configuration should be migrated to `NEXT_PUBLIC_*` variables where appropriate.
+The recovered source expects these public browser runtime variables:
 
-## Recovery approach
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 
-This branch is intentionally isolated from `main`. It establishes source control metadata and documents the verified production baseline before reconstructed source files are reviewed and merged. The live Vercel deployment is not modified by this branch.
+Values are intentionally not stored in Git. Configure them in Vercel before deploying this branch from GitHub.
+
+Server-side secrets used by the Supabase Edge Function, including email-provider credentials, remain outside this repository.
+
+## Safety status
+
+No production deployment was modified as part of this recovery. Do not connect the production Vercel project to GitHub until this branch has passed a clean preview build and functional smoke test.
+
+## Validation checklist
+
+1. Install dependencies.
+2. Run `npm run build` with the two public Supabase variables configured.
+3. Deploy the recovery branch to a preview environment.
+4. Verify landing page, authentication, saved session, dashboard and assessment navigation.
+5. Use a test account to verify autosave, final scoring, major details, favorites, comparison, college filtering, results email and PDF export.
+6. Only after preview validation, merge to `main` and connect the Vercel production project to GitHub.
