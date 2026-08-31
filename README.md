@@ -15,6 +15,8 @@ The initial source in this repository was reconstructed from the verified Vercel
 
 ## Deployment workflow
 
-Use feature/recovery branches and pull requests. Validate changes in a Vercel preview deployment before merging to `main` or promoting to production.
+Use feature/recovery branches and pull requests. Validate changes in the isolated `compassu-test` Vercel project before promoting changes to the live `compassu` project.
+
+The `compassu-test` project is the designated Git-connected validation environment for the recovered baseline.
 
 Never commit service-role credentials, Resend API keys, Vercel secrets, or `.env.local`.
