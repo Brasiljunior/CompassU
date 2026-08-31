@@ -1,5 +1,20 @@
 # CompassU
 
-Source control for the CompassU college and career discovery application.
+CompassU is a Next.js college and career discovery application that turns student interests, strengths, personality, values, and preferences into personalized major, career, salary, and college recommendations.
 
-The initial recovery branch reconstructs the current production Next.js application from the verified Vercel deployment so future development can use Git branches and pull requests safely.
+## Local setup
+
+1. Copy `.env.example` to `.env.local`.
+2. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
+3. Run `npm install`.
+4. Run `npm run dev`.
+
+## Production recovery
+
+The initial source in this repository was reconstructed from the verified Vercel production deployment because that project was originally deployed without a Git integration. See `RECOVERY.md` for the verified baseline, safety constraints, and validation checklist.
+
+## Deployment workflow
+
+Use feature/recovery branches and pull requests. Validate changes in a Vercel preview deployment before merging to `main` or promoting to production.
+
+Never commit service-role credentials, Resend API keys, Vercel secrets, or `.env.local`.
