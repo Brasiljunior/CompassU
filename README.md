@@ -17,6 +17,6 @@ The initial source in this repository was reconstructed from the verified Vercel
 
 Use feature/recovery branches and pull requests. Validate changes in the isolated `compassu-test` Vercel project before promoting changes to the live `compassu` project.
 
-The `compassu-test` project is the designated Git-connected validation environment for the recovered baseline. Git deployment validation was initiated after the repository connection was confirmed.
+The `compassu-test` project is the designated Git-connected validation environment for the recovered baseline. Git deployment validation was initiated after the repository connection was confirmed. The Vercel framework preset should remain set to Next.js.
 
 Never commit service-role credentials, Resend API keys, Vercel secrets, or `.env.local`.
