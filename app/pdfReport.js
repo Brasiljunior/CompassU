@@ -16,7 +16,6 @@ export async function generateCompassUPdf({matches=[],selectedMajor=null,traits=
   const landscape=(x,y,w,h)=>{pdf.setFillColor(227,237,255);pdf.roundedRect(x,y,w,h,4,4,'F');pdf.setFillColor(255,224,147);pdf.circle(x+w*.76,y+h*.3,h*.13,'F');pdf.setFillColor(170,191,230);pdf.triangle(x,y+h*.78,x+w*.26,y+h*.30,x+w*.48,y+h*.78,'F');pdf.setFillColor(104,139,194);pdf.triangle(x+w*.24,y+h*.78,x+w*.55,y+h*.18,x+w*.83,y+h*.78,'F');pdf.setFillColor(71,111,170);pdf.triangle(x+w*.58,y+h*.78,x+w*.80,y+h*.37,x+w,y+h*.78,'F');pdf.setFillColor(236,242,252);pdf.rect(x,y+h*.76,w,h*.24,'F');pdf.setDrawColor(...gold);pdf.setLineWidth(2.6);pdf.lines([[w*.08,-h*.08],[w*.10,-h*.10],[w*.10,-h*.08],[w*.11,-h*.06]],x+w*.42,y+h*.98,[1,1],'S',false);compass(x+w*.15,y+h*.22,h*.14);};
   const card=(x,y,w,h,fill=[255,255,255])=>{pdf.setFillColor(...fill);pdf.setDrawColor(225,231,242);pdf.roundedRect(x,y,w,h,3,3,'FD');};
 
-  // PAGE 1 — visual cover + strongest directions
   pdf.setFillColor(...navy);pdf.rect(0,0,W,72,'F');
   pdf.setFillColor(...blue);pdf.rect(0,0,7,72,'F');
   compass(23,20,9);
@@ -31,7 +30,6 @@ export async function generateCompassUPdf({matches=[],selectedMajor=null,traits=
   text('Your direction is coming into focus.',15,91,16,ink,'bold');
   wrapped('CompassU turns your 80-question assessment into a practical roadmap. These results are a compass, not a command—use them to explore the majors, careers, and college destinations that fit you best.',15,100,180,9.3,muted,'normal',4.7);
 
-  // Snapshot strip
   const best=top[0];
   card(15,120,55,32,pale);card(77.5,120,55,32,[247,244,255]);card(140,120,55,32,[255,248,232]);
   text('TOP ALIGNMENT',20,129,7,blue,'bold');text(best?`${Number(best.match_score).toFixed(0)}%`:'—',20,141,18,ink,'bold');text('strongest major match',20,147,7.4,muted);
@@ -41,12 +39,11 @@ export async function generateCompassUPdf({matches=[],selectedMajor=null,traits=
   text('Your Strongest Directions',15,168,15,ink,'bold');
   text('Major matches ranked by alignment with your multidimensional profile',15,175,8,muted);
   let y=185;
-  top.forEach((m,i)=>{const isTop=i===0;card(15,y,180,13,isTop?[235,242,255]:[250,251,253]);pdf.setFillColor(isTop?...blue:[210,220,239]);pdf.circle(24,y+6.5,4.3,'F');text(String(m.rank),24,y+8,8,[255,255,255],'bold',{align:'center'});text(m.major_name,32,y+6.1,9.2,ink,'bold');text(isTop?'Your strongest current direction':'Explore this possible path',32,y+10.3,6.8,muted);text(`${Number(m.match_score).toFixed(0)}%`,189,y+8.2,10,isTop?green:blue,'bold',{align:'right'});y+=15;});
+  top.forEach((m,i)=>{const isTop=i===0;card(15,y,180,13,isTop?[235,242,255]:[250,251,253]);const rankColor=isTop?blue:[210,220,239];pdf.setFillColor(...rankColor);pdf.circle(24,y+6.5,4.3,'F');text(String(m.rank),24,y+8,8,[255,255,255],'bold',{align:'center'});text(m.major_name,32,y+6.1,9.2,ink,'bold');text(isTop?'Your strongest current direction':'Explore this possible path',32,y+10.3,6.8,muted);text(`${Number(m.match_score).toFixed(0)}%`,189,y+8.2,10,isTop?green:blue,'bold',{align:'right'});y+=15;});
 
   pdf.setFillColor(...navy);pdf.roundedRect(15,267,180,10,3,3,'F');text('YOUR FUTURE. YOUR DIRECTION. YOUR NEXT MOVE.',105,273.5,8,[255,255,255],'bold',{align:'center'});
   footer(1);
 
-  // PAGE 2 — profile, careers, next steps
   pdf.addPage();
   pdf.setFillColor(...navy);pdf.rect(0,0,W,42,'F');compass(22,19,8);text('CompassU',36,17,19,[255,255,255],'bold');text('Your Roadmap — From Insight to Action',36,27,10,[210,222,255],'bold');
   landscape(139,8,56,27);
