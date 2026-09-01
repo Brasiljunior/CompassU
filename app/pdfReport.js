@@ -1,77 +1,47 @@
 export async function generateCompassUPdf({matches=[],selectedMajor=null,traits=[],careers=[],session=null}){
-  if(!matches.length)return;
-  const {jsPDF}=await import('jspdf');
-  const pdf=new jsPDF({unit:'mm',format:'a4',compress:true});
-  const W=210,H=297;
-  const navy=[15,29,64],blue=[47,111,237],purple=[111,92,255],gold=[244,183,64],ink=[23,32,51],muted=[88,101,122],green=[25,118,75],line=[224,231,242];
-  const firstName=session?.user?.user_metadata?.first_name||'Student';
-  const top=matches.slice(0,5);
-  const selected=selectedMajor||top[0];
-  const traitRows=traits.slice(0,6);
-  const careerRows=careers.map(r=>r.occupations||{}).filter(o=>o.name).slice(0,6);
-  const money=value=>value==null?'Unavailable':`$${Number(value).toLocaleString()}`;
-
-  const setFont=(size=10,color=ink,style='normal')=>{pdf.setFont('helvetica',style);pdf.setFontSize(size);pdf.setTextColor(...color)};
-  const text=(value,x,y,size=10,color=ink,style='normal',options={})=>{setFont(size,color,style);pdf.text(String(value??''),x,y,options)};
-  const wrap=(value,x,y,width,size=9,color=muted,style='normal',lineHeight=4.4,maxLines=null)=>{setFont(size,color,style);let lines=pdf.splitTextToSize(String(value??''),width);if(maxLines&&lines.length>maxLines){lines=lines.slice(0,maxLines);const last=lines[maxLines-1];lines[maxLines-1]=last.length>3?`${last.slice(0,-3)}...`:last}pdf.text(lines,x,y);return y+lines.length*lineHeight};
-  const card=(x,y,w,h,fill=[255,255,255],stroke=line,r=4)=>{pdf.setFillColor(...fill);pdf.setDrawColor(...stroke);pdf.setLineWidth(.45);pdf.roundedRect(x,y,w,h,r,r,'FD')};
-  const footer=page=>{pdf.setDrawColor(...line);pdf.line(14,280,196,280);text('CompassU  |  Discover. Plan. Succeed.  |  getcompassu.com',14,286,7,muted,'bold');text(`Personalized Career Pathway Results  |  Page ${page}`,196,286,7,muted,'normal',{align:'right'});text('Educational decision-support tool. Career and college data are informed by federal CIP, BLS, and IPEDS sources.',14,291,6.2,[112,122,139])};
-  const compassMark=(cx,cy,r)=>{pdf.setFillColor(...blue);pdf.circle(cx,cy,r,'F');pdf.setDrawColor(255,255,255);pdf.setLineWidth(.7);pdf.circle(cx,cy,r-2,'S');pdf.setFillColor(255,255,255);pdf.triangle(cx,cy-r+3,cx-2.2,cy+1,cx+2.2,cy+1,'F');pdf.setFillColor(...gold);pdf.triangle(cx,cy+r-3,cx-2.2,cy-1,cx+2.2,cy-1,'F');text('N',cx,cy-r-1.2,5,[255,255,255],'bold',{align:'center'})};
-  const header=(title,subtitle,page)=>{pdf.setFillColor(...navy);pdf.rect(0,0,W,43,'F');pdf.setFillColor(...blue);pdf.rect(0,0,5,43,'F');compassMark(20,18,8);text('CompassU',34,16.5,19,[255,255,255],'bold');text(title,34,27,9,[208,221,255],'bold');text(subtitle,14,56,15,ink,'bold');pdf.setFillColor(...gold);pdf.rect(14,62,182,1.8,'F');footer(page)};
-
-  const makeHeroIllustration=(mode='hero')=>{
-    const canvas=document.createElement('canvas');canvas.width=1600;canvas.height=1000;const c=canvas.getContext('2d');
-    const sky=c.createLinearGradient(0,0,0,1000);sky.addColorStop(0,'#dce8ff');sky.addColorStop(.52,'#f8f9ff');sky.addColorStop(1,'#fff3cf');c.fillStyle=sky;c.fillRect(0,0,1600,1000);
-    const sun=c.createRadialGradient(1220,190,20,1220,190,150);sun.addColorStop(0,'#fff5bd');sun.addColorStop(.65,'#ffd978');sun.addColorStop(1,'rgba(255,217,120,0)');c.fillStyle=sun;c.beginPath();c.arc(1220,190,150,0,Math.PI*2);c.fill();c.fillStyle='#ffd36b';c.beginPath();c.arc(1220,190,88,0,Math.PI*2);c.fill();
-    c.fillStyle='#c8d6f1';c.beginPath();c.moveTo(-80,720);c.lineTo(330,270);c.lineTo(700,720);c.closePath();c.fill();
-    c.fillStyle='#88a5d4';c.beginPath();c.moveTo(230,720);c.lineTo(760,145);c.lineTo(1210,720);c.closePath();c.fill();
-    c.fillStyle='#4f78b5';c.beginPath();c.moveTo(770,720);c.lineTo(1160,340);c.lineTo(1650,720);c.closePath();c.fill();
-    c.fillStyle='#e9eff9';c.fillRect(0,720,1600,280);
-    c.fillStyle='#d7e1f3';c.beginPath();c.ellipse(820,855,650,125,0,0,Math.PI*2);c.fill();
-    c.strokeStyle='#f4b740';c.lineWidth=54;c.lineCap='round';c.beginPath();c.moveTo(690,1000);c.bezierCurveTo(710,900,810,845,900,780);c.bezierCurveTo(1010,700,1070,600,1275,550);c.stroke();
-    c.strokeStyle='#fff4c8';c.lineWidth=13;c.beginPath();c.moveTo(690,1000);c.bezierCurveTo(710,900,810,845,900,780);c.bezierCurveTo(1010,700,1070,600,1275,550);c.stroke();
-    const hx=650,hy=720;c.strokeStyle='#102044';c.lineWidth=26;c.lineCap='round';c.beginPath();c.moveTo(hx,hy+96);c.lineTo(hx-45,hy+190);c.moveTo(hx+20,hy+96);c.lineTo(hx+70,hy+190);c.moveTo(hx-10,hy+30);c.lineTo(hx-70,hy+105);c.moveTo(hx+15,hy+30);c.lineTo(hx+75,hy+95);c.stroke();c.fillStyle='#102044';c.beginPath();c.arc(hx,hy,34,0,Math.PI*2);c.fill();c.fillRect(hx-25,hy+28,50,85);c.fillStyle='#6f5cff';c.beginPath();c.arc(hx-35,hy+55,35,0,Math.PI*2);c.fill();c.fillStyle='#2f6fed';c.fillRect(hx-72,hy+36,35,65);
-    c.fillStyle='#ffffff';c.strokeStyle='#d8e0f0';c.lineWidth=7;c.beginPath();c.roundRect(80,95,280,255,36);c.fill();c.stroke();c.fillStyle='#2f6fed';c.beginPath();c.arc(220,220,86,0,Math.PI*2);c.fill();c.strokeStyle='#fff';c.lineWidth=10;c.beginPath();c.arc(220,220,62,0,Math.PI*2);c.stroke();c.fillStyle='#fff';c.beginPath();c.moveTo(220,143);c.lineTo(190,228);c.lineTo(220,210);c.lineTo(250,228);c.closePath();c.fill();c.fillStyle='#f4b740';c.beginPath();c.moveTo(220,297);c.lineTo(190,212);c.lineTo(220,230);c.lineTo(250,212);c.closePath();c.fill();c.fillStyle='#0f1d40';c.font='700 28px Arial';c.textAlign='center';c.fillText('N',220,120);
-    if(mode==='action'){
-      c.fillStyle='rgba(15,29,64,.92)';c.beginPath();c.roundRect(1000,700,470,200,34);c.fill();c.fillStyle='#ffffff';c.font='700 48px Arial';c.textAlign='left';c.fillText('YOUR NEXT MOVE',1055,770);c.font='30px Arial';c.fillStyle='#dfe8ff';c.fillText('Explore  •  Compare',1055,825);c.fillText('Connect  •  Choose',1055,870);
-    }
-    return canvas.toDataURL('image/jpeg',.92);
-  };
-
-  const heroImage=makeHeroIllustration('hero');
-  const actionImage=makeHeroIllustration('action');
-
-  // PAGE 1 - illustrated cover
-  pdf.addImage(heroImage,'JPEG',0,0,W,132,undefined,'FAST');
-  pdf.setFillColor(...navy);pdf.rect(0,0,W,34,'F');pdf.setFillColor(...blue);pdf.rect(0,0,5,34,'F');compassMark(19,17,8);text('CompassU',33,16.5,20,[255,255,255],'bold');text('DISCOVER  |  PLAN  |  SUCCEED',33,26,7,[205,219,255],'bold');
-  pdf.setFillColor(15,29,64,.95);pdf.roundedRect(14,86,112,39,6,6,'F');text('PERSONALIZED CAREER PATHWAY RESULTS',21,97,7.2,[202,218,255],'bold');text('Your Future Has',21,108,18,[255,255,255],'bold');text('a Direction.',21,120,23,[255,255,255],'bold');
-  card(14,143,182,43,[255,255,255]);text(`Prepared for ${firstName}`,22,156,10,blue,'bold');text('Your direction is coming into focus.',22,168,16,ink,'bold');wrap('CompassU turns your 80-question assessment into a personalized roadmap for exploring majors, careers, and college destinations that fit who you are.',22,177,165,9.3,muted,'normal',4.6,3);
-  const best=top[0];card(14,198,54,32,[239,244,255]);card(78,198,54,32,[247,244,255]);card(142,198,54,32,[255,249,234]);text('TOP ALIGNMENT',20,207,6.8,blue,'bold');text(best?`${Number(best.match_score).toFixed(0)}%`:'-',20,219,18,ink,'bold');text('strongest match',20,226,6.8,muted);text('DIRECTIONS',84,207,6.8,purple,'bold');text(String(matches.length),84,219,18,ink,'bold');text('ranked majors',84,226,6.8,muted);text('ASSESSMENT',148,207,6.8,[177,122,16],'bold');text('80',148,219,18,ink,'bold');text('insights reviewed',148,226,6.8,muted);
-  pdf.setFillColor(...navy);pdf.roundedRect(14,243,182,25,5,5,'F');text('A compass, not a command.',22,254,12,[255,255,255],'bold');text('Use these results to explore possibilities, ask better questions, and choose your next step with confidence.',22,262,8,[219,229,255]);footer(1);
-
-  // PAGE 2 - strongest directions
-  pdf.addPage();header('Your strongest directions','Top major matches at a glance',2);
-  text('Your Strongest Directions',14,80,16,ink,'bold');wrap('These are the five majors with the strongest current alignment to your assessment profile. Treat them as high-priority paths to explore - not fixed outcomes.',14,90,182,9,muted,'normal',4.4,3);
-  let y=111;
-  top.forEach((m,i)=>{const isTop=i===0;card(14,y,182,25,isTop?[235,242,255]:[250,251,253]);pdf.setFillColor(...(isTop?blue:[204,216,238]));pdf.circle(27,y+12.5,7,'F');text(String(m.rank),27,y+15,10,[255,255,255],'bold',{align:'center'});wrap(m.major_name,40,y+8,115,10,ink,'bold',4.4,2);text(`${Number(m.match_score).toFixed(0)}%`,187,y+12,12,isTop?green:blue,'bold',{align:'right'});text(isTop?'Your strongest current direction':'A strong path worth exploring',40,y+20,7.2,muted);y+=29;});
-  card(14,259,182,13,[15,29,64],[15,29,64],4);text('NEXT: Open each major in CompassU to compare careers, colleges, and fit.',105,267,8,[255,255,255],'bold',{align:'center'});
-
-  // PAGE 3 - profile + career waypoints
-  pdf.addPage();header('From insight to possible careers','Profile alignment and career waypoints',3);
-  text(selected?`Why ${selected.major_name} Points North`:'Why Your Top Direction Points North',14,80,15,ink,'bold');wrap('Your selected path reflects the traits most important to this field. The alignment bars below show where your assessment signals are strongest.',14,90,182,8.8,muted,'normal',4.3,3);
-  text('Your Profile at a Glance',14,111,12.5,ink,'bold');
-  let ty=121;
-  if(traitRows.length){traitRows.forEach((t,i)=>{const score=Math.max(0,Math.min(100,Number(t.user_score)||0));text(t.trait_name,14,ty,8.2,ink,'bold');text(`${score.toFixed(0)}%`,196,ty,8.2,i%2===0?blue:purple,'bold',{align:'right'});pdf.setFillColor(232,237,246);pdf.roundedRect(14,ty+4,182,4,2,2,'F');pdf.setFillColor(...(i%2===0?blue:purple));pdf.roundedRect(14,ty+4,182*(score/100),4,2,2,'F');ty+=15;});}else{card(14,ty,182,23,[248,250,255]);wrap('Detailed trait alignment will appear here when explanation data are available for this result.',20,ty+9,168,8.2,muted);ty+=31;}
-  const cyStart=Math.max(ty+7,205);text('Career Waypoints',14,cyStart,13.5,ink,'bold');text('Occupations connected to your selected major',14,cyStart+7,7.5,muted);
-  let cy=cyStart+14;careerRows.slice(0,3).forEach((o,i)=>{card(14,cy,182,18.5,i===0?[238,244,255]:[250,251,253]);pdf.setFillColor(...(i===0?purple:blue));pdf.circle(23,cy+9.2,4,'F');text(String(i+1),23,cy+10.8,7,[255,255,255],'bold',{align:'center'});wrap(o.name,31,cy+6.2,114,8.2,ink,'bold',3.8,1);const details=[`${money(o.median_salary)} median pay`,o.outlook_percent!=null?`${o.outlook_percent}% projected growth`:null].filter(Boolean).join('  |  ');text(details,31,cy+12.7,6.6,muted);cy+=20.5;});
-
-  // PAGE 4 - action plan + full visual
-  pdf.addPage();pdf.addImage(actionImage,'JPEG',0,0,W,112,undefined,'FAST');pdf.setFillColor(...navy);pdf.rect(0,0,W,33,'F');pdf.setFillColor(...blue);pdf.rect(0,0,5,33,'F');compassMark(19,16,8);text('CompassU',33,16,20,[255,255,255],'bold');text('TURN DIRECTION INTO ACTION',33,26,7,[205,219,255],'bold');
-  card(14,122,182,38,[255,255,255]);text('Career Possibilities to Explore',22,136,15,ink,'bold');wrap('Use these occupations as starting points for job shadowing, informational interviews, internship searches, and conversations with advisors.',22,147,164,8.6,muted,'normal',4.2,3);
-  let py=171;careerRows.slice(3,6).forEach((o,i)=>{card(14,py,182,19,[248,250,255]);pdf.setFillColor(...(i%2===0?blue:purple));pdf.circle(23,py+9.5,4,'F');text(String(i+4),23,py+11,7,[255,255,255],'bold',{align:'center'});wrap(o.name,31,py+6.2,115,8.2,ink,'bold',3.8,1);const details=[`${money(o.median_salary)} median pay`,o.outlook_percent!=null?`${o.outlook_percent}% growth`:null,o.annual_openings!=null?`${Number(o.annual_openings).toLocaleString()} annual openings`:null].filter(Boolean).join('  |  ');text(details,31,py+12.8,6.4,muted);py+=21;});
-  const nextY=Math.max(py+4,238);text('Chart Your Next Move',14,nextY,13.5,ink,'bold');
-  const steps=[['1','Explore','Review your strongest major matches.'],['2','Compare','Compare salary, growth, openings, and education.'],['3','Connect','Talk with a counselor, advisor, faculty member, or professional.'],['4','Choose','Use College Destinations to identify programs and schools.']];
-  let sx=14;steps.forEach((s,i)=>{const fills=[[239,244,255],[247,244,255],[255,249,234],[240,249,246]];card(sx,nextY+8,42.5,28,fills[i]);text(s[0],sx+5,nextY+17,10,i===0?blue:i===1?purple:i===2?[177,122,16]:green,'bold');text(s[1],sx+13,nextY+17,8.4,ink,'bold');wrap(s[2],sx+5,nextY+23,32.5,6.5,muted,'normal',3.1,3);sx+=46.5;});footer(4);
-
-  pdf.save('CompassU-Personalized-Career-Pathway-Results.pdf');
+ if(!matches.length)return;
+ const{jsPDF}=await import('jspdf');
+ const pdf=new jsPDF({orientation:'landscape',unit:'mm',format:'a4',compress:true});
+ const W=297,H=210,C={navy:[7,28,70],blue:[35,112,235],purple:[101,65,219],green:[35,151,72],gold:[243,162,28],ink:[18,38,83],muted:[78,95,126],line:[220,227,239],pale:[247,249,253],lav:[246,244,255]};
+ const first=session?.user?.user_metadata?.first_name||'Student',top=matches.slice(0,5),sel=selectedMajor||top[0],trs=traits.slice(0,5),cars=careers.map(r=>r.occupations||{}).filter(o=>o.name).slice(0,6);
+ const money=v=>v==null?'Unavailable':`$${Number(v).toLocaleString()}`,pct=v=>`${Number(v||0).toFixed(0)}%`;
+ const sf=(s=10,c=C.ink,st='normal')=>{pdf.setFont('helvetica',st);pdf.setFontSize(s);pdf.setTextColor(...c)};
+ const tx=(v,x,y,s=10,c=C.ink,st='normal',o={})=>{sf(s,c,st);pdf.text(String(v??''),x,y,o)};
+ const wr=(v,x,y,w,s=9,c=C.muted,st='normal',lh=4.2,max=99)=>{sf(s,c,st);let a=pdf.splitTextToSize(String(v??''),w);if(a.length>max)a=a.slice(0,max);pdf.text(a,x,y);return a.length*lh};
+ const cd=(x,y,w,h,f=[255,255,255],r=4)=>{pdf.setFillColor(...f);pdf.setDrawColor(...C.line);pdf.setLineWidth(.4);pdf.roundedRect(x,y,w,h,r,r,'FD')};
+ const ln=(a,b,c,d,col=C.line,w=.4)=>{pdf.setDrawColor(...col);pdf.setLineWidth(w);pdf.line(a,b,c,d)};
+ const ci=(x,y,r,f,l)=>{pdf.setFillColor(...f);pdf.circle(x,y,r,'F');tx(l,x,y+2.3,r*1.15,[255,255,255],'bold',{align:'center'})};
+ const compass=(x,y,r)=>{pdf.setFillColor(...C.blue);pdf.circle(x,y,r,'F');pdf.setDrawColor(255,255,255);pdf.setLineWidth(.6);pdf.circle(x,y,r-2,'S');pdf.setFillColor(255,255,255);pdf.triangle(x,y-r+2,x-2,y+1,x+2,y+1,'F');pdf.setFillColor(...C.gold);pdf.triangle(x,y+r-2,x-2,y-1,x+2,y-1,'F')};
+ const foot=p=>{pdf.setFillColor(...C.navy);pdf.rect(0,H-9,W,9,'F');tx('CompassU  |  Discover. Plan. Succeed.  |  getcompassu.com',9,H-3.6,6.6,[255,255,255],'bold');tx(`Page ${p}`,W-9,H-3.6,6.6,[255,255,255],'bold',{align:'right'})};
+ async function img(url){try{const r=await fetch(url,{mode:'cors'});if(!r.ok)throw 0;const b=await r.blob();return await new Promise((res,rej)=>{const f=new FileReader();f.onload=()=>res(f.result);f.onerror=rej;f.readAsDataURL(b)})}catch{return null}}
+ const [hero,action]=await Promise.all([img('https://images.unsplash.com/photo-1780402838881-51355887536f?auto=format&fit=crop&fm=jpg&q=82&w=1800'),img('https://images.unsplash.com/photo-1660296146402-ce70cb473615?auto=format&fit=crop&fm=jpg&q=82&w=1800')]);
+ if(hero)pdf.addImage(hero,'JPEG',115,24,182,113,undefined,'FAST');else{pdf.setFillColor(225,235,252);pdf.rect(115,24,182,113,'F')}
+ pdf.setFillColor(...C.navy);pdf.rect(0,0,W,24,'F');compass(16,12,8);tx('CompassU',29,13.5,21,[255,255,255],'bold');tx('DISCOVER. PLAN. SUCCEED.',29,20,6.5,[216,227,251],'bold');tx('Your Future.  Your Direction.  Our Guidance.',286,15,8,[255,255,255],'bold',{align:'right'});
+ tx('YOUR PERSONALIZED',14,48,9,C.purple,'bold');tx('CAREER PATHWAY',14,64,23,C.navy,'bold');tx('Results',14,83,25,C.purple,'italic');
+ wr('You have taken an important step toward your future. CompassU turns your 80-question assessment into a practical, personalized roadmap so you can explore, plan, and succeed.',14,97,91,9,C.ink,'normal',4.5,5);
+ tx('PREPARED FOR',14,125,7.3,C.purple,'bold');tx(first,47,125,13,C.navy,'bold');
+ cd(12,143,273,42,C.navy,5);tx('YOUR RESULTS SNAPSHOT',19,155,8,[255,255,255],'bold');
+ const snaps=[['1','TOP MATCH',top[0]?pct(top[0].match_score):'-',C.purple],['5','TOP MAJORS',String(top.length),C.blue],['6','CAREER PATHS',String(cars.length),C.green],['80','ASSESSMENT','80',C.gold]];
+ snaps.forEach((s,i)=>{const x=82+i*49;ln(x-11,150,x-11,178,[69,91,139],.5);ci(x,154,6,s[3],s[0]);tx(s[1],x,168,6.5,[222,231,255],'bold',{align:'center'});tx(s[2],x,178,12,[255,255,255],'bold',{align:'center'})});
+ tx('YOUR FUTURE. YOUR DIRECTION. OUR GUIDANCE.',148.5,194,7,C.navy,'bold',{align:'center'});foot(1);
+ pdf.addPage();tx('YOUR TOP MATCHES AT A GLANCE',12,17,14,C.navy,'bold');ln(111,14,281,14,C.purple,.7);compass(288,14,5.5);
+ const cw=52.5,g=3.5,cy=27;
+ top.forEach((m,i)=>{const x=12+i*(cw+g);cd(x,cy,cw,105,[255,255,255],4);if(hero)pdf.addImage(hero,'JPEG',x,cy,cw,31,undefined,'FAST');else{pdf.setFillColor(...[C.purple,C.blue,C.gold,[141,113,75],C.navy][i]);pdf.rect(x,cy,cw,31,'F')}ci(x+8,cy+8,6,[C.purple,C.blue,C.gold,[141,113,75],C.navy][i],String(i+1));wr(m.major_name,x+5,cy+41,cw-10,8.2,C.navy,'bold',3.9,3);tx(pct(m.match_score),x+5,cy+70,15,C.green,'bold');wr(i===0?'Your strongest current direction':'Explore this possible path',x+5,cy+82,cw-10,7,C.ink,'normal',3.7,3)});
+ if(action)pdf.addImage(action,'JPEG',12,143,273,43,undefined,'FAST');else{pdf.setFillColor(239,243,251);pdf.rect(12,143,273,43,'F')}
+ cd(92,151,113,25,[255,255,255],4);tx('Your future is shaped by the choices you explore.',148.5,160,10,C.navy,'italic',{align:'center'});tx('Use these matches as starting points for deeper exploration.',148.5,168,7.2,C.muted,'normal',{align:'center'});foot(2);
+ pdf.addPage();compass(12,13,5);tx(sel?`WHY ${String(sel.major_name).toUpperCase()} POINTS NORTH`:'WHY YOUR TOP DIRECTION POINTS NORTH',22,17,13,C.navy,'bold');ln(177,14,284,14,C.purple,.7);wr('Your selected path reflects the traits that matter most to this field. The profile below shows where your assessment signals align most strongly.',22,25,255,8.4,C.ink,'normal',4.1,3);
+ cd(12,42,108,123,C.lav,5);tx('YOUR PROFILE AT A GLANCE',20,56,11,C.purple,'bold');let y=70;
+ if(trs.length)trs.forEach((t,i)=>{const sc=Math.max(0,Math.min(100,Number(t.user_score)||0));ci(28,y+2,7.3,i%2?C.blue:C.purple,String(i+1));wr(t.trait_name,41,y,47,7.8,C.navy,'bold',3.7,2);tx(pct(sc),109,y+5,10,C.navy,'bold',{align:'right'});pdf.setFillColor(230,234,244);pdf.roundedRect(41,y+11,68,3.4,1.7,1.7,'F');pdf.setFillColor(...(i%2?C.blue:C.purple));pdf.roundedRect(41,y+11,68*sc/100,3.4,1.7,1.7,'F');y+=20});
+ if(action)pdf.addImage(action,'JPEG',12,169,108,30,undefined,'FAST');
+ cd(128,42,157,157,[255,255,255],5);tx('CAREER WAYPOINTS',206.5,56,11,C.green,'bold',{align:'center'});tx('Occupations connected to your selected major',206.5,64,7.4,C.green,'normal',{align:'center'});
+ y=74;cars.slice(0,4).forEach((o,i)=>{cd(137,y,139,25,i%2?[249,250,253]:[246,252,248],3);ci(146,y+7,4.5,C.green,String(i+1));wr(o.name,156,y+6,82,7.5,C.navy,'bold',3.4,2);tx(money(o.median_salary),156,y+18,8.7,C.green,'bold');tx('median pay',156,y+22.5,5.5,C.muted);if(o.outlook_percent!=null){tx(`${o.outlook_percent}%`,236,y+18,8.7,C.green,'bold',{align:'center'});tx('growth',236,y+22.5,5.5,C.muted,'normal',{align:'center'})}if(o.annual_openings!=null){tx(Number(o.annual_openings).toLocaleString(),267,y+18,8.7,C.green,'bold',{align:'center'});tx('openings',267,y+22.5,5.5,C.muted,'normal',{align:'center'})}y+=29});foot(3);
+ pdf.addPage();tx('TURN DIRECTION INTO ACTION',12,17,14,C.navy,'bold');ln(106,14,170,14,C.purple,.7);
+ cd(12,27,150,43,C.pale,4);tx('CAREER POSSIBILITIES TO EXPLORE',20,40,10.5,C.green,'bold');wr('Use these occupations as starting points for job shadowing, informational interviews, internship searches, and conversations with advisors.',20,50,132,7.5,C.ink,'normal',3.8,4);
+ y=77;cars.slice(4,6).forEach((o,i)=>{cd(12,y,150,27,[255,255,255],3);ci(24,y+8,5,C.green,String(i+5));wr(o.name,35,y+7,76,7.4,C.navy,'bold',3.4,2);tx(money(o.median_salary),35,y+20,8.8,C.green,'bold');if(o.outlook_percent!=null)tx(`${o.outlook_percent}% growth`,108,y+20,7,C.green,'bold',{align:'center'});y+=31});
+ if(action)pdf.addImage(action,'JPEG',12,143,150,49,undefined,'FAST');
+ cd(170,27,115,165,C.pale,5);tx('CHART YOUR NEXT MOVE',180,42,11,C.purple,'bold');
+ const steps=[['1','EXPLORE','Review your strongest major matches and save the paths that feel most compelling.',C.purple],['2','COMPARE','Compare salary, growth, openings, education, and the kind of work each path involves.',C.blue],['3','CONNECT','Talk with a counselor, advisor, faculty member, or professional working in the field.',C.green],['4','CHOOSE','Use College Destinations to identify programs that can turn your direction into a destination.',C.gold]];
+ y=57;steps.forEach((s,i)=>{ci(183,y,5.4,s[3],s[0]);tx(s[1],196,y-1,8,s[3],'bold');wr(s[2],196,y+6,76,6.8,C.ink,'normal',3.5,4);if(i<3)ln(179,y+25,276,y+25,C.line,.35);y+=34});
+ pdf.setFillColor(...C.navy);pdf.roundedRect(12,194,273,8,3,3,'F');tx('Keep exploring. Keep growing. Keep moving forward.',148.5,199.5,10,C.gold,'italic',{align:'center'});foot(4);
+ pdf.save('CompassU-Personalized-Career-Pathway-Results.pdf');
 }
