@@ -1,4 +1,5 @@
 import './globals.css';
+import MajorDescriptions from './MajorDescriptions';
 
 export const metadata = {
   title: 'CompassU | Discover Your Direction',
@@ -10,6 +11,7 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body>
         {children}
+        <MajorDescriptions />
         <a
           href="/admin"
           aria-label="Open CompassU Administrator"
