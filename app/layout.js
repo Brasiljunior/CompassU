@@ -1,5 +1,6 @@
 import './globals.css';
 import MajorDescriptions from './MajorDescriptions';
+import AuthRedirectGuard from './AuthRedirectGuard';
 
 export const metadata = {
   title: 'CompassU | Discover Your Direction',
@@ -10,6 +11,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>
+        <AuthRedirectGuard />
         {children}
         <MajorDescriptions />
         <a
