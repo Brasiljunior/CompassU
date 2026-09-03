@@ -11,18 +11,30 @@ export default function CareerOverviewInjector(){
         const toggle=card.querySelector('.careerToggle');
         const title=toggle?.querySelector('b')?.textContent?.trim();
         const host=toggle?.querySelector('.topbar > div');
-        if(!title||!host||host.querySelector('.careerOverview')) return;
-        const p=document.createElement('div');
-        p.className='careerOverview';
-        p.textContent=getCareerDescription(title);
-        Object.assign(p.style,{fontSize:'12px',lineHeight:'1.5',color:'#475467',marginTop:'6px',maxWidth:'650px'});
-        host.appendChild(p);
+        if(title&&host&&!host.querySelector('.careerOverview')){
+          const p=document.createElement('div');
+          p.className='careerOverview';
+          p.textContent=getCareerDescription(title);
+          Object.assign(p.style,{fontSize:'12px',lineHeight:'1.5',color:'#475467',marginTop:'6px',maxWidth:'650px'});
+          host.appendChild(p);
+        }
+        card.querySelectorAll('.metric').forEach(metric=>{
+          const label=metric.querySelector('span');
+          const value=metric.querySelector('b');
+          if(!label||!value||label.textContent?.trim()!=='Annual openings'||value.dataset.blsOpeningsScaled==='true') return;
+          const raw=Number(String(value.textContent||'').replace(/,/g,''));
+          if(Number.isFinite(raw)){
+            value.textContent=Math.round(raw*1000).toLocaleString('en-US');
+            value.dataset.blsOpeningsScaled='true';
+            label.textContent='Average annual openings';
+          }
+        });
       });
       const card=[...document.querySelectorAll('.card')].find(el=>el.querySelector('.sectionTitle')?.textContent?.trim()==='Career Waypoints');
       if(card&&!card.querySelector('.careerOverviewNote')){
         const n=document.createElement('div');
         n.className='careerOverviewNote small muted';
-        n.textContent=careerDescriptionNote;
+        n.textContent=`${careerDescriptionNote} BLS annual openings are reported in thousands in the source data; CompassU displays the full estimated number of openings.`;
         Object.assign(n.style,{marginTop:'12px',lineHeight:'1.5'});
         card.appendChild(n);
       }
