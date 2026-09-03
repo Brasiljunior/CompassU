@@ -20,21 +20,14 @@ export default function CareerOverviewInjector(){
         }
         card.querySelectorAll('.metric').forEach(metric=>{
           const label=metric.querySelector('span');
-          const value=metric.querySelector('b');
-          if(!label||!value||label.textContent?.trim()!=='Annual openings'||value.dataset.blsOpeningsScaled==='true') return;
-          const raw=Number(String(value.textContent||'').replace(/,/g,''));
-          if(Number.isFinite(raw)){
-            value.textContent=Math.round(raw*1000).toLocaleString('en-US');
-            value.dataset.blsOpeningsScaled='true';
-            label.textContent='Average annual openings';
-          }
+          if(label?.textContent?.trim()==='Annual openings') label.textContent='Average annual openings';
         });
       });
       const card=[...document.querySelectorAll('.card')].find(el=>el.querySelector('.sectionTitle')?.textContent?.trim()==='Career Waypoints');
       if(card&&!card.querySelector('.careerOverviewNote')){
         const n=document.createElement('div');
         n.className='careerOverviewNote small muted';
-        n.textContent=`${careerDescriptionNote} BLS annual openings are reported in thousands in the source data; CompassU displays the full estimated number of openings.`;
+        n.textContent=`${careerDescriptionNote} Average annual openings are displayed as full estimated job counts from BLS projections.`;
         Object.assign(n.style,{marginTop:'12px',lineHeight:'1.5'});
         card.appendChild(n);
       }
