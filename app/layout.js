@@ -1,6 +1,6 @@
 import './globals.css';
 import MajorDescriptions from './MajorDescriptions';
-import CareerDescriptions from './CareerDescriptions';
+import CareerOverviewInjector from './CareerOverviewInjector';
 import AuthRedirectGuard from './AuthRedirectGuard';
 
 export const metadata = {
@@ -15,7 +15,7 @@ export default function RootLayout({ children }) {
         <AuthRedirectGuard />
         {children}
         <MajorDescriptions />
-        <CareerDescriptions />
+        <CareerOverviewInjector />
         <a
           href="/admin"
           aria-label="Open CompassU Administrator"
