@@ -1,5 +1,6 @@
 import './admin.css';
+import BatchInvite500 from './BatchInvite500';
 
 export const metadata={title:'CompassU Administrator | Control Center',description:'Secure CompassU administrator dashboard.'};
 
-export default function AdminLayout({children}){return children}
+export default function AdminLayout({children}){return <>{children}<BatchInvite500/></>}
