@@ -1,0 +1,2 @@
+.adminBatch > :not(.batch500Root){display:none!important;pointer-events:none!important;visibility:hidden!important}
+.adminBatch > .batch500Root{display:block!important;pointer-events:auto!important;visibility:visible!important}
