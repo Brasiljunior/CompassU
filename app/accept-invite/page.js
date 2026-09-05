@@ -11,7 +11,7 @@ function saveSession(session){localStorage.setItem('compassu_session',JSON.strin
 
 export default function AcceptInvite(){
   const[ready,setReady]=useState(false);
-  const[loading,setLoading]=useState(true);
+  const[pendingToken,setPendingToken]=useState(null);
   const[email,setEmail]=useState('');
   const[password,setPassword]=useState('');
   const[confirmPassword,setConfirmPassword]=useState('');
@@ -20,33 +20,40 @@ export default function AcceptInvite(){
   const[busy,setBusy]=useState(false);
 
   useEffect(()=>{
-    const finish=async()=>{
-      try{
-        let session=getSession();
-        const params=new URLSearchParams(window.location.search);
-        const tokenHash=params.get('token_hash');
-        const type=params.get('type')||'invite';
-        if(!session?.access_token&&tokenHash){
-          const response=await fetch(`${SUPABASE_URL}/auth/v1/verify`,{
-            method:'POST',headers:baseHeaders,body:JSON.stringify({token_hash:tokenHash,type})
-          });
-          const body=await response.json().catch(()=>({}));
-          if(!response.ok)throw new Error(body?.msg||body?.error_description||body?.message||'This invitation is no longer active.');
-          session=body;
-          saveSession(session);
-          history.replaceState({},document.title,window.location.pathname);
-        }
-        setReady(Boolean(session?.access_token));
-        setEmail(session?.user?.email||'');
-        if(!session?.access_token){
-          const hash=new URLSearchParams(window.location.hash.replace(/^#/,''));
-          const hashError=hash.get('error_description');
-          if(hashError)setError(hashError.replace(/\+/g,' '));
-        }
-      }catch(e){setError(e.message)}finally{setLoading(false)}
-    };
-    finish();
+    const session=getSession();
+    if(session?.access_token){
+      setReady(true);
+      setEmail(session?.user?.email||'');
+      return;
+    }
+    const params=new URLSearchParams(window.location.search);
+    const tokenHash=params.get('token_hash');
+    const type=params.get('type')||'invite';
+    if(tokenHash){
+      setPendingToken({tokenHash,type});
+      return;
+    }
+    const hash=new URLSearchParams(window.location.hash.replace(/^#/,''));
+    const hashError=hash.get('error_description');
+    if(hashError)setError(hashError.replace(/\+/g,' '));
   },[]);
+
+  async function acceptInvitation(){
+    if(!pendingToken)return;
+    setBusy(true);setError('');
+    try{
+      const response=await fetch(`${SUPABASE_URL}/auth/v1/verify`,{
+        method:'POST',headers:baseHeaders,body:JSON.stringify({token_hash:pendingToken.tokenHash,type:pendingToken.type})
+      });
+      const body=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(body?.msg||body?.error_description||body?.message||'This invitation is no longer active.');
+      saveSession(body);
+      history.replaceState({},document.title,window.location.pathname);
+      setPendingToken(null);
+      setReady(Boolean(body?.access_token));
+      setEmail(body?.user?.email||'');
+    }catch(e){setError(e.message)}finally{setBusy(false)}
+  }
 
   async function createPassword(){
     setBusy(true);setMessage('');setError('');
@@ -73,7 +80,7 @@ export default function AcceptInvite(){
     <div className="center"><div className="panel">
       <span className="eyebrow">Welcome to CompassU</span>
       <h2>Create your account password</h2>
-      {loading?<p className="muted">Securely accepting your CompassU invitation…</p>:message?<>
+      {message?<>
         <div className="success">{message}</div>
         <a className="btn primary wide" href="/">Log in to CompassU</a>
       </>:ready?<>
@@ -84,6 +91,10 @@ export default function AcceptInvite(){
         <div className="small muted" style={{marginBottom:14}}>Use at least 8 characters. Choose a password you do not use for another account.</div>
         {error&&<div className="error">{error}</div>}
         <button className="btn primary wide" disabled={busy} onClick={createPassword}>{busy?'Creating account…':'Create Password & Finish Setup'}</button>
+      </>:pendingToken?<>
+        <p className="muted">Your invitation is ready. To protect your one-time invitation from automated email scanners, please confirm that you want to continue.</p>
+        {error&&<div className="error">{error}</div>}
+        <button className="btn primary wide" disabled={busy} onClick={acceptInvitation}>{busy?'Accepting invitation…':'Accept Invitation & Continue'}</button>
       </>:<>
         <div className="error">{error||'This invitation session is missing or has expired.'}</div>
         <p className="muted">Please request a new CompassU invitation and use the newest invitation email.</p>
