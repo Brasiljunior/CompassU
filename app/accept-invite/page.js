@@ -30,10 +30,11 @@ export default function AcceptInvite(){
       if(!session?.access_token)throw new Error('This invitation is no longer active. Ask a CompassU administrator to send a new invitation.');
       if(password.length<8)throw new Error('Your password must be at least 8 characters long.');
       if(password!==confirmPassword)throw new Error('The passwords do not match.');
+      const metadata={...(session.user?.user_metadata||{}),compassu_account_setup_required:false,compassu_account_setup_completed:true};
       const response=await fetch(`${SUPABASE_URL}/auth/v1/user`,{
         method:'PUT',
         headers:{...baseHeaders,Authorization:`Bearer ${session.access_token}`},
-        body:JSON.stringify({password})
+        body:JSON.stringify({password,data:metadata})
       });
       const body=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(body?.msg||body?.error_description||body?.message||'Unable to create your password.');
