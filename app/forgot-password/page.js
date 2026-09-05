@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://xvvgalifibyqwebasalx.supabase.co';
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_lWtjaYYRk4hd1Bb-yKG3eA_CxF4CW9-';
 const baseHeaders = { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' };
 
 export default function ForgotPassword(){
@@ -16,12 +16,13 @@ export default function ForgotPassword(){
     setBusy(true);setMessage('');setError('');
     try{
       if(!email.trim())throw new Error('Enter the email address associated with your CompassU account.');
-      if(!SUPABASE_URL||!SUPABASE_KEY)throw new Error('CompassU authentication is not configured.');
-      const redirectTo=window.location.origin;
+      const redirectTo=`${window.location.origin}/reset-password`;
       const response=await fetch(`${SUPABASE_URL}/auth/v1/recover?redirect_to=${encodeURIComponent(redirectTo)}`,{
         method:'POST',headers:baseHeaders,body:JSON.stringify({email:email.trim().toLowerCase()})
       });
-      const body=await response.json().catch(()=>({}));
+      const text=await response.text();
+      let body={};
+      try{body=text?JSON.parse(text):{}}catch{}
       if(!response.ok)throw new Error(body?.msg||body?.error_description||body?.message||'Unable to send password reset email.');
       setMessage('If a CompassU account exists for that email address, a password reset link has been sent. Please check your inbox and spam folder.');
     }catch(e){setError(e.message)}finally{setBusy(false)}
