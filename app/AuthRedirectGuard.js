@@ -25,17 +25,19 @@ export default function AuthRedirectGuard(){
       return originalFetch(input,init);
     };
 
-    // Supabase's implicit email-confirmation flow returns the authenticated
-    // session in the URL fragment. Capture it, save the CompassU session,
-    // remove tokens from the visible URL, and reload into the dashboard.
+    // Supabase implicit auth flows (email confirmation and password recovery)
+    // return an authenticated session in the URL fragment. Capture it, save
+    // the CompassU session, remove tokens from the visible URL, then route
+    // recovery links to the password-update screen.
     const hash=new URLSearchParams(window.location.hash.replace(/^#/,''));
     const accessToken=hash.get('access_token');
     const refreshToken=hash.get('refresh_token');
+    const authType=hash.get('type');
     if(accessToken&&SUPABASE_URL&&SUPABASE_KEY){
       const finish=async()=>{
         try{
           const r=await originalFetch(`${SUPABASE_URL}/auth/v1/user`,{headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${accessToken}`}});
-          if(!r.ok)throw new Error('Unable to complete email confirmation');
+          if(!r.ok)throw new Error('Unable to complete authentication');
           const user=await r.json();
           const session={
             access_token:accessToken,
@@ -47,12 +49,19 @@ export default function AuthRedirectGuard(){
           };
           localStorage.setItem('compassu_session',JSON.stringify(session));
           history.replaceState({},document.title,window.location.pathname+window.location.search);
+
+          if(authType==='recovery'){
+            sessionStorage.removeItem('compassu_confirmation_reloaded');
+            window.location.replace('/reset-password');
+            return;
+          }
+
           if(!sessionStorage.getItem('compassu_confirmation_reloaded')){
             sessionStorage.setItem('compassu_confirmation_reloaded','1');
             window.location.replace('/');
           }
         }catch(error){
-          console.error('CompassU confirmation callback failed',error);
+          console.error('CompassU authentication callback failed',error);
         }
       };
       finish();
