@@ -9,6 +9,8 @@ export default function AuthRedirectGuard(){
   useEffect(()=>{
     if(typeof window==='undefined')return;
 
+    // This guard is also intentionally kept in the production bundle so a
+    // fresh GitHub deployment can synchronize newly connected Vercel projects.
     const originalFetch=window.fetch.bind(window);
     window.fetch=(input,init)=>{
       try{
