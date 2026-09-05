@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://xvvgalifibyqwebasalx.supabase.co';
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_lWtjaYYRk4hd1Bb-yKG3eA_CxF4CW9-';
 const baseHeaders = { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' };
 
 function getSession(){try{return JSON.parse(localStorage.getItem('compassu_session')||'null')}catch{return null}}
@@ -16,7 +16,43 @@ export default function ResetPassword(){
   const[error,setError]=useState('');
   const[busy,setBusy]=useState(false);
 
-  useEffect(()=>{setReady(Boolean(getSession()?.access_token))},[]);
+  useEffect(()=>{
+    const initialize=async()=>{
+      try{
+        const hash=new URLSearchParams(window.location.hash.replace(/^#/,''));
+        const accessToken=hash.get('access_token');
+        const refreshToken=hash.get('refresh_token')||'';
+        const authType=hash.get('type');
+
+        if(accessToken&&authType==='recovery'){
+          const response=await fetch(`${SUPABASE_URL}/auth/v1/user`,{
+            headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${accessToken}`}
+          });
+          if(!response.ok)throw new Error('This password reset link is invalid or has expired.');
+          const user=await response.json();
+          const expiresIn=Number(hash.get('expires_in')||3600);
+          const session={
+            access_token:accessToken,
+            refresh_token:refreshToken,
+            token_type:hash.get('token_type')||'bearer',
+            expires_in:expiresIn,
+            expires_at:Math.floor(Date.now()/1000)+expiresIn,
+            user
+          };
+          localStorage.setItem('compassu_session',JSON.stringify(session));
+          history.replaceState({},document.title,window.location.pathname+window.location.search);
+          setReady(true);
+          return;
+        }
+
+        setReady(Boolean(getSession()?.access_token));
+      }catch(e){
+        setError(e.message||'Unable to open this password reset link.');
+        setReady(false);
+      }
+    };
+    initialize();
+  },[]);
 
   async function updatePassword(){
     setBusy(true);setMessage('');setError('');
@@ -68,7 +104,8 @@ export default function ResetPassword(){
         {error&&<div className="error">{error}</div>}
         <button className="btn primary wide" disabled={busy} onClick={updatePassword}>{busy?'Updating…':'Update Password'}</button>
       </>:<>
-        <div className="error">This password reset session is missing or has expired.</div>
+        {error&&<div className="error">{error}</div>}
+        {!error&&<div className="error">This password reset session is missing or has expired.</div>}
         <a className="btn primary wide" href="/forgot-password">Request a New Reset Link</a>
       </>}
     </div></div>
