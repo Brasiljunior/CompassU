@@ -9,8 +9,6 @@ export default function AuthRedirectGuard(){
   useEffect(()=>{
     if(typeof window==='undefined')return;
 
-    // Ensure email confirmations return to the exact CompassU environment
-    // where the account was created (staging -> staging, production -> production).
     const originalFetch=window.fetch.bind(window);
     window.fetch=(input,init)=>{
       try{
@@ -25,9 +23,6 @@ export default function AuthRedirectGuard(){
       return originalFetch(input,init);
     };
 
-    // Supabase implicit auth flows return an authenticated session in the URL
-    // fragment. Capture it, save the CompassU session, remove tokens from the
-    // visible URL, then route each flow to the correct next step.
     const hash=new URLSearchParams(window.location.hash.replace(/^#/,''));
     const accessToken=hash.get('access_token');
     const refreshToken=hash.get('refresh_token');
@@ -55,9 +50,10 @@ export default function AuthRedirectGuard(){
             return;
           }
 
-          if(authType==='invite'){
+          const needsInviteSetup=authType==='invite'||user?.user_metadata?.compassu_account_setup_required===true;
+          if(needsInviteSetup){
             sessionStorage.removeItem('compassu_confirmation_reloaded');
-            window.location.replace('/accept-invite');
+            if(window.location.pathname!=='/accept-invite')window.location.replace('/accept-invite');
             return;
           }
 
