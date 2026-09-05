@@ -32,9 +32,24 @@ export default function ResetPassword(){
       });
       const body=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(body?.msg||body?.error_description||body?.message||'Unable to update your password.');
+
+      let confirmationSent=false;
+      try{
+        const confirmResponse=await fetch(`${SUPABASE_URL}/functions/v1/password-change-confirmation`,{
+          method:'POST',
+          headers:{...baseHeaders,Authorization:`Bearer ${session.access_token}`},
+          body:'{}'
+        });
+        confirmationSent=confirmResponse.ok;
+      }catch(error){
+        console.error('CompassU password confirmation email failed',error);
+      }
+
       localStorage.removeItem('compassu_session');
       setPassword('');setConfirmPassword('');setReady(false);
-      setMessage('Your CompassU password has been updated successfully. You can now return to CompassU and log in with your new password.');
+      setMessage(confirmationSent
+        ?'Your CompassU password has been updated successfully. A confirmation email has also been sent to your account email address. You can now return to CompassU and log in with your new password.'
+        :'Your CompassU password has been updated successfully. You can now return to CompassU and log in with your new password.');
     }catch(e){setError(e.message)}finally{setBusy(false)}
   }
 
