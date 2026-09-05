@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://xvvgalifibyqwebasalx.supabase.co';
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_lWtjaYYRk4hd1Bb-yKG3eA_CxF4CW9-';
 const baseHeaders = { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' };
 
 function getSession(){try{return JSON.parse(localStorage.getItem('compassu_session')||'null')}catch{return null}}
+function saveSession(session){localStorage.setItem('compassu_session',JSON.stringify(session))}
 
 export default function AcceptInvite(){
   const[ready,setReady]=useState(false);
@@ -17,32 +18,60 @@ export default function AcceptInvite(){
   const[message,setMessage]=useState('');
   const[error,setError]=useState('');
   const[busy,setBusy]=useState(false);
+  const[loading,setLoading]=useState(true);
 
   useEffect(()=>{
-    const session=getSession();
-    if(session?.access_token){
-      setReady(true);
-      setEmail(session?.user?.email||'');
-      return;
+    let cancelled=false;
+    async function initialize(){
+      try{
+        const hash=new URLSearchParams(window.location.hash.replace(/^#/,''));
+        const accessToken=hash.get('access_token');
+        const refreshToken=hash.get('refresh_token');
+        const tokenType=hash.get('token_type')||'bearer';
+        const expiresIn=Number(hash.get('expires_in')||3600);
+        const hashError=hash.get('error_description');
+
+        if(hashError){
+          if(!cancelled)setError(hashError.replace(/\+/g,' '));
+          return;
+        }
+
+        if(accessToken){
+          const userRes=await fetch(`${SUPABASE_URL}/auth/v1/user`,{headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${accessToken}`}});
+          const user=await userRes.json().catch(()=>({}));
+          if(!userRes.ok)throw new Error(user?.msg||user?.error_description||user?.message||'Unable to accept this invitation.');
+          const session={access_token:accessToken,refresh_token:refreshToken,token_type:tokenType,expires_in:expiresIn,user};
+          saveSession(session);
+          history.replaceState({},document.title,window.location.pathname);
+          if(!cancelled){setReady(true);setEmail(user?.email||'');setPendingToken(null)}
+          return;
+        }
+
+        const existing=getSession();
+        if(existing?.access_token){
+          if(!cancelled){setReady(true);setEmail(existing?.user?.email||'')}
+          return;
+        }
+
+        const params=new URLSearchParams(window.location.search);
+        const tokenHash=params.get('token_hash');
+        const type=params.get('type')||'invite';
+        if(tokenHash){
+          if(!cancelled)setPendingToken({tokenHash,type});
+          return;
+        }
+      }catch(e){if(!cancelled)setError(e.message)}finally{if(!cancelled)setLoading(false)}
     }
-    const params=new URLSearchParams(window.location.search);
-    const tokenHash=params.get('token_hash');
-    const type=params.get('type')||'invite';
-    if(tokenHash){
-      setPendingToken({tokenHash,type});
-      return;
-    }
-    const hash=new URLSearchParams(window.location.hash.replace(/^#/,''));
-    const hashError=hash.get('error_description');
-    if(hashError)setError(hashError.replace(/\+/g,' '));
+    initialize();
+    return()=>{cancelled=true};
   },[]);
 
   function acceptInvitation(){
-    if(!pendingToken||!SUPABASE_URL)return;
+    if(!pendingToken){setError('This invitation is missing its verification token. Please request a new invitation.');return;}
     setBusy(true);setError('');
     const redirectTo=`${window.location.origin}/accept-invite`;
     const verifyUrl=`${SUPABASE_URL}/auth/v1/verify?token=${encodeURIComponent(pendingToken.tokenHash)}&type=${encodeURIComponent(pendingToken.type||'invite')}&redirect_to=${encodeURIComponent(redirectTo)}`;
-    window.location.assign(verifyUrl);
+    window.location.href=verifyUrl;
   }
 
   async function createPassword(){
@@ -70,7 +99,7 @@ export default function AcceptInvite(){
     <div className="center"><div className="panel">
       <span className="eyebrow">Welcome to CompassU</span>
       <h2>Create your account password</h2>
-      {message?<>
+      {loading?<p className="muted">Preparing your CompassU invitation…</p>:message?<>
         <div className="success">{message}</div>
         <a className="btn primary wide" href="/">Log in to CompassU</a>
       </>:ready?<>
@@ -84,7 +113,7 @@ export default function AcceptInvite(){
       </>:pendingToken?<>
         <p className="muted">Your invitation is ready. To protect your one-time invitation from automated email scanners, please confirm that you want to continue.</p>
         {error&&<div className="error">{error}</div>}
-        <button className="btn primary wide" disabled={busy} onClick={acceptInvitation}>{busy?'Accepting invitation…':'Accept Invitation & Continue'}</button>
+        <button type="button" className="btn primary wide" disabled={busy} onClick={acceptInvitation}>{busy?'Accepting invitation…':'Accept Invitation & Continue'}</button>
       </>:<>
         <div className="error">{error||'This invitation session is missing or has expired.'}</div>
         <p className="muted">Please request a new CompassU invitation and use the newest invitation email.</p>
