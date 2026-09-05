@@ -2,6 +2,7 @@ import './globals.css';
 import MajorDescriptions from './MajorDescriptions';
 import CareerOverviewInjector from './CareerOverviewInjector';
 import AuthRedirectGuard from './AuthRedirectGuard';
+import ForgotPasswordLink from './ForgotPasswordLink';
 
 export const metadata = {
   title: 'CompassU | Discover Your Direction',
@@ -13,6 +14,7 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body>
         <AuthRedirectGuard />
+        <ForgotPasswordLink />
         {children}
         <MajorDescriptions />
         <CareerOverviewInjector />
