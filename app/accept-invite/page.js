@@ -7,9 +7,11 @@ const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 const baseHeaders = { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' };
 
 function getSession(){try{return JSON.parse(localStorage.getItem('compassu_session')||'null')}catch{return null}}
+function saveSession(session){localStorage.setItem('compassu_session',JSON.stringify(session))}
 
 export default function AcceptInvite(){
   const[ready,setReady]=useState(false);
+  const[loading,setLoading]=useState(true);
   const[email,setEmail]=useState('');
   const[password,setPassword]=useState('');
   const[confirmPassword,setConfirmPassword]=useState('');
@@ -18,9 +20,32 @@ export default function AcceptInvite(){
   const[busy,setBusy]=useState(false);
 
   useEffect(()=>{
-    const session=getSession();
-    setReady(Boolean(session?.access_token));
-    setEmail(session?.user?.email||'');
+    const finish=async()=>{
+      try{
+        let session=getSession();
+        const params=new URLSearchParams(window.location.search);
+        const tokenHash=params.get('token_hash');
+        const type=params.get('type')||'invite';
+        if(!session?.access_token&&tokenHash){
+          const response=await fetch(`${SUPABASE_URL}/auth/v1/verify`,{
+            method:'POST',headers:baseHeaders,body:JSON.stringify({token_hash:tokenHash,type})
+          });
+          const body=await response.json().catch(()=>({}));
+          if(!response.ok)throw new Error(body?.msg||body?.error_description||body?.message||'This invitation is no longer active.');
+          session=body;
+          saveSession(session);
+          history.replaceState({},document.title,window.location.pathname);
+        }
+        setReady(Boolean(session?.access_token));
+        setEmail(session?.user?.email||'');
+        if(!session?.access_token){
+          const hash=new URLSearchParams(window.location.hash.replace(/^#/,''));
+          const hashError=hash.get('error_description');
+          if(hashError)setError(hashError.replace(/\+/g,' '));
+        }
+      }catch(e){setError(e.message)}finally{setLoading(false)}
+    };
+    finish();
   },[]);
 
   async function createPassword(){
@@ -32,9 +57,7 @@ export default function AcceptInvite(){
       if(password!==confirmPassword)throw new Error('The passwords do not match.');
       const metadata={...(session.user?.user_metadata||{}),compassu_account_setup_required:false,compassu_account_setup_completed:true};
       const response=await fetch(`${SUPABASE_URL}/auth/v1/user`,{
-        method:'PUT',
-        headers:{...baseHeaders,Authorization:`Bearer ${session.access_token}`},
-        body:JSON.stringify({password,data:metadata})
+        method:'PUT',headers:{...baseHeaders,Authorization:`Bearer ${session.access_token}`},body:JSON.stringify({password,data:metadata})
       });
       const body=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(body?.msg||body?.error_description||body?.message||'Unable to create your password.');
@@ -50,7 +73,7 @@ export default function AcceptInvite(){
     <div className="center"><div className="panel">
       <span className="eyebrow">Welcome to CompassU</span>
       <h2>Create your account password</h2>
-      {message?<>
+      {loading?<p className="muted">Securely accepting your CompassU invitation…</p>:message?<>
         <div className="success">{message}</div>
         <a className="btn primary wide" href="/">Log in to CompassU</a>
       </>:ready?<>
@@ -62,8 +85,8 @@ export default function AcceptInvite(){
         {error&&<div className="error">{error}</div>}
         <button className="btn primary wide" disabled={busy} onClick={createPassword}>{busy?'Creating account…':'Create Password & Finish Setup'}</button>
       </>:<>
-        <div className="error">This invitation session is missing or has expired.</div>
-        <p className="muted">Please use the invitation link from your CompassU email. If it has expired, ask the administrator who invited you to send a new invitation.</p>
+        <div className="error">{error||'This invitation session is missing or has expired.'}</div>
+        <p className="muted">Please request a new CompassU invitation and use the newest invitation email.</p>
         <a className="btn ghost wide" href="/">Return to CompassU</a>
       </>}
     </div></div>
