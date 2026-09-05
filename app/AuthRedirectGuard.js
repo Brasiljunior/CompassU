@@ -2,15 +2,13 @@
 
 import { useEffect } from 'react';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://xvvgalifibyqwebasalx.supabase.co';
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_lWtjaYYRk4hd1Bb-yKG3eA_CxF4CW9-';
 
 export default function AuthRedirectGuard(){
   useEffect(()=>{
     if(typeof window==='undefined')return;
 
-    // This guard is also intentionally kept in the production bundle so a
-    // fresh GitHub deployment can synchronize newly connected Vercel projects.
     const originalFetch=window.fetch.bind(window);
     window.fetch=(input,init)=>{
       try{
@@ -29,18 +27,20 @@ export default function AuthRedirectGuard(){
     const accessToken=hash.get('access_token');
     const refreshToken=hash.get('refresh_token');
     const authType=hash.get('type');
+
     if(accessToken&&SUPABASE_URL&&SUPABASE_KEY){
       const finish=async()=>{
         try{
           const r=await originalFetch(`${SUPABASE_URL}/auth/v1/user`,{headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${accessToken}`}});
           if(!r.ok)throw new Error('Unable to complete authentication');
           const user=await r.json();
+          const expiresIn=Number(hash.get('expires_in')||3600);
           const session={
             access_token:accessToken,
             refresh_token:refreshToken||'',
             token_type:hash.get('token_type')||'bearer',
-            expires_in:Number(hash.get('expires_in')||3600),
-            expires_at:Math.floor(Date.now()/1000)+Number(hash.get('expires_in')||3600),
+            expires_in:expiresIn,
+            expires_at:Math.floor(Date.now()/1000)+expiresIn,
             user
           };
           localStorage.setItem('compassu_session',JSON.stringify(session));
@@ -52,10 +52,17 @@ export default function AuthRedirectGuard(){
             return;
           }
 
-          const needsInviteSetup=authType==='invite'||user?.user_metadata?.compassu_account_setup_required===true;
+          const metadata=user?.user_metadata||{};
+          const needsInviteSetup=
+            authType==='invite'||
+            metadata.compassu_account_setup_required===true||
+            metadata.compassu_account_setup_completed!==true;
+
           if(needsInviteSetup){
             sessionStorage.removeItem('compassu_confirmation_reloaded');
-            if(window.location.pathname!=='/accept-invite')window.location.replace('/accept-invite');
+            if(window.location.pathname!=='/accept-invite'){
+              window.location.replace('/accept-invite');
+            }
             return;
           }
 
