@@ -7,7 +7,6 @@ const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 const baseHeaders = { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' };
 
 function getSession(){try{return JSON.parse(localStorage.getItem('compassu_session')||'null')}catch{return null}}
-function saveSession(session){localStorage.setItem('compassu_session',JSON.stringify(session))}
 
 export default function AcceptInvite(){
   const[ready,setReady]=useState(false);
@@ -38,21 +37,12 @@ export default function AcceptInvite(){
     if(hashError)setError(hashError.replace(/\+/g,' '));
   },[]);
 
-  async function acceptInvitation(){
-    if(!pendingToken)return;
+  function acceptInvitation(){
+    if(!pendingToken||!SUPABASE_URL)return;
     setBusy(true);setError('');
-    try{
-      const response=await fetch(`${SUPABASE_URL}/auth/v1/verify`,{
-        method:'POST',headers:baseHeaders,body:JSON.stringify({token_hash:pendingToken.tokenHash,type:pendingToken.type})
-      });
-      const body=await response.json().catch(()=>({}));
-      if(!response.ok)throw new Error(body?.msg||body?.error_description||body?.message||'This invitation is no longer active.');
-      saveSession(body);
-      history.replaceState({},document.title,window.location.pathname);
-      setPendingToken(null);
-      setReady(Boolean(body?.access_token));
-      setEmail(body?.user?.email||'');
-    }catch(e){setError(e.message)}finally{setBusy(false)}
+    const redirectTo=`${window.location.origin}/accept-invite`;
+    const verifyUrl=`${SUPABASE_URL}/auth/v1/verify?token=${encodeURIComponent(pendingToken.tokenHash)}&type=${encodeURIComponent(pendingToken.type||'invite')}&redirect_to=${encodeURIComponent(redirectTo)}`;
+    window.location.assign(verifyUrl);
   }
 
   async function createPassword(){
