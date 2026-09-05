@@ -25,10 +25,9 @@ export default function AuthRedirectGuard(){
       return originalFetch(input,init);
     };
 
-    // Supabase implicit auth flows (email confirmation and password recovery)
-    // return an authenticated session in the URL fragment. Capture it, save
-    // the CompassU session, remove tokens from the visible URL, then route
-    // recovery links to the password-update screen.
+    // Supabase implicit auth flows return an authenticated session in the URL
+    // fragment. Capture it, save the CompassU session, remove tokens from the
+    // visible URL, then route each flow to the correct next step.
     const hash=new URLSearchParams(window.location.hash.replace(/^#/,''));
     const accessToken=hash.get('access_token');
     const refreshToken=hash.get('refresh_token');
@@ -53,6 +52,12 @@ export default function AuthRedirectGuard(){
           if(authType==='recovery'){
             sessionStorage.removeItem('compassu_confirmation_reloaded');
             window.location.replace('/reset-password');
+            return;
+          }
+
+          if(authType==='invite'){
+            sessionStorage.removeItem('compassu_confirmation_reloaded');
+            window.location.replace('/accept-invite');
             return;
           }
 
