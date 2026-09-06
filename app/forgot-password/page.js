@@ -16,7 +16,7 @@ export default function ForgotPassword(){
     setBusy(true);setMessage('');setError('');
     try{
       if(!email.trim())throw new Error('Enter the email address associated with your CompassU account.');
-      const redirectTo=`${window.location.origin}/reset-password`;
+      const redirectTo='https://getcompassu.com/reset-password';
       const response=await fetch(`${SUPABASE_URL}/auth/v1/recover?redirect_to=${encodeURIComponent(redirectTo)}`,{
         method:'POST',headers:baseHeaders,body:JSON.stringify({email:email.trim().toLowerCase()})
       });
