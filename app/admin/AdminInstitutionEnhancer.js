@@ -40,7 +40,7 @@ export default function AdminInstitutionEnhancer(){
         if(!response.ok)return readCache();
         const rows=await response.json();
         const cache=readCache();
-        rows.forEach(row=>{if(row?.email&&row?.institution)cache[String(row.email).toLowerCase()]=normalize(row.institution)});
+        rows.forEach(row=>{if(row?.email)cache[String(row.email).toLowerCase()]=normalize(row.institution)});
         writeCache(cache);
         return cache;
       }catch{return readCache()}
@@ -49,14 +49,14 @@ export default function AdminInstitutionEnhancer(){
     async function saveInstitution(email,institution){
       email=String(email||'').trim().toLowerCase();
       institution=normalize(institution);
-      if(!email||!institution)return;
+      if(!email)return false;
       const cache=readCache();
       cache[email]=institution;
       writeCache(cache);
       const session=readSession();
-      if(!session?.access_token)return;
+      if(!session?.access_token)return false;
       try{
-        await originalFetch(`${SUPABASE_URL}/rest/v1/account_institutions`,{
+        const response=await originalFetch(`${SUPABASE_URL}/rest/v1/account_institutions`,{
           method:'POST',
           headers:{
             apikey:SUPABASE_KEY,
@@ -64,9 +64,10 @@ export default function AdminInstitutionEnhancer(){
             'Content-Type':'application/json',
             Prefer:'resolution=merge-duplicates,return=minimal'
           },
-          body:JSON.stringify({email,institution})
+          body:JSON.stringify({email,institution,updated_at:new Date().toISOString()})
         });
-      }catch(error){console.error('CompassU institution assignment could not be persisted',error)}
+        return response.ok;
+      }catch(error){console.error('CompassU institution assignment could not be persisted',error);return false}
     }
 
     window.fetch=async(input,init)=>{
@@ -157,8 +158,9 @@ export default function AdminInstitutionEnhancer(){
       return true;
     }
 
+    function getEmailForRow(row){return row.querySelector('td:first-child span')?.textContent?.trim().toLowerCase()||''}
     function getInstitutionForRow(row){
-      const email=row.querySelector('td:first-child span')?.textContent?.trim().toLowerCase()||'';
+      const email=getEmailForRow(row);
       const user=overviewUsers.find(u=>String(u.email||'').toLowerCase()===email);
       return normalize(user?.institution)||'—';
     }
@@ -168,6 +170,47 @@ export default function AdminInstitutionEnhancer(){
         const institution=normalize(row.querySelector('[data-compassu-institution-cell]')?.textContent);
         const nextDisplay=!filterValue||institution===filterValue?'':'none';
         if(row.style.display!==nextDisplay)row.style.display=nextDisplay;
+      });
+    }
+
+    function closeEditModal(){document.getElementById('compassu-account-edit-modal')?.remove()}
+    function openEditModal(row){
+      closeEditModal();
+      const email=getEmailForRow(row);
+      if(!email)return;
+      const user=overviewUsers.find(u=>String(u.email||'').toLowerCase()===email)||{};
+      const displayName=[user.first_name,user.last_name].filter(Boolean).join(' ')||row.querySelector('td:first-child b')?.textContent?.trim()||'Account';
+      const currentInstitution=normalize(user.institution);
+
+      const backdrop=document.createElement('div');
+      backdrop.id='compassu-account-edit-modal';
+      backdrop.className='adminModalBackdrop';
+      const modal=document.createElement('div');
+      modal.className='adminModal';
+      modal.innerHTML=`<div class="adminPanelHead"><div><div class="adminKicker">EDIT ACCOUNT INFORMATION</div><h2>${htmlEscape(displayName)}</h2><p>${htmlEscape(email)}</p></div><button class="btn ghost" type="button" data-edit-close>Close</button></div><div class="detailSection"><label for="compassu-edit-institution">Institution</label><input id="compassu-edit-institution" placeholder="High school, college, or university" value="${htmlEscape(currentInstitution)}"><p class="muted">Institution is optional. Leave it blank if this account is not associated with a client institution.</p></div><div class="detailActions"><button class="btn primary" type="button" data-edit-save>Save Changes</button><button class="btn ghost" type="button" data-edit-cancel>Cancel</button></div><div data-edit-status></div>`;
+      backdrop.appendChild(modal);
+      document.body.appendChild(backdrop);
+      backdrop.addEventListener('click',e=>{if(e.target===backdrop)closeEditModal()});
+      modal.querySelector('[data-edit-close]').addEventListener('click',closeEditModal);
+      modal.querySelector('[data-edit-cancel]').addEventListener('click',closeEditModal);
+      modal.querySelector('[data-edit-save]').addEventListener('click',async()=>{
+        const saveButton=modal.querySelector('[data-edit-save]');
+        const status=modal.querySelector('[data-edit-status]');
+        const institution=normalize(modal.querySelector('#compassu-edit-institution').value);
+        saveButton.disabled=true;
+        saveButton.textContent='Saving…';
+        status.textContent='';
+        const ok=await saveInstitution(email,institution);
+        if(!ok){
+          saveButton.disabled=false;
+          saveButton.textContent='Save Changes';
+          status.className='error adminNotice';
+          status.textContent='Unable to save the account update. Please try again.';
+          return;
+        }
+        overviewUsers=overviewUsers.map(u=>String(u.email||'').toLowerCase()===email?{...u,institution}:u);
+        scheduleEnhance();
+        closeEditModal();
       });
     }
 
@@ -196,6 +239,16 @@ export default function AdminInstitutionEnhancer(){
         if(td){
           const nextValue=getInstitutionForRow(row);
           if(td.textContent!==nextValue){td.textContent=nextValue;changed=true}
+        }
+        const actions=row.querySelector('.adminRowActions');
+        if(actions&&!actions.querySelector('[data-compassu-edit-account]')){
+          const edit=document.createElement('button');
+          edit.type='button';
+          edit.textContent='Edit';
+          edit.dataset.compassuEditAccount='1';
+          edit.addEventListener('click',()=>openEditModal(row));
+          actions.insertAdjacentElement('afterbegin',edit);
+          changed=true;
         }
       });
       applyFilter();
@@ -253,6 +306,7 @@ export default function AdminInstitutionEnhancer(){
       window.fetch=originalFetch;
       observer.disconnect();
       document.removeEventListener('change',fileListener,true);
+      closeEditModal();
     };
   },[]);
   return null;
