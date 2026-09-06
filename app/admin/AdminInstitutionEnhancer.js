@@ -17,6 +17,9 @@ function writeCache(cache){
 function readSession(){
   try{return JSON.parse(localStorage.getItem('compassu_session')||'null')}catch{return null}
 }
+function htmlEscape(v){
+  return String(v).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;').replaceAll('>','&gt;');
+}
 
 export default function AdminInstitutionEnhancer(){
   useEffect(()=>{
@@ -25,6 +28,7 @@ export default function AdminInstitutionEnhancer(){
     let individualInstitution='';
     let batchInstitutionByEmail={};
     let filterValue='';
+    let scheduled=false;
 
     async function loadPersistentInstitutions(){
       const session=readSession();
@@ -99,7 +103,7 @@ export default function AdminInstitutionEnhancer(){
             ...user,
             institution:normalize(user?.institution||user?.profile?.institution||user?.user_metadata?.institution||persistent[String(user?.email||'').toLowerCase()])
           }));
-          refreshDashboard();
+          scheduleEnhance();
         }
       }catch{}
       return response;
@@ -131,9 +135,9 @@ export default function AdminInstitutionEnhancer(){
 
     function enhanceInvitePanel(){
       const panel=[...document.querySelectorAll('.adminPanel')].find(el=>el.querySelector('h2')?.textContent?.includes('Add / Assist Account'));
-      if(!panel||document.getElementById('compassu-institution-input'))return;
+      if(!panel||document.getElementById('compassu-institution-input'))return false;
       const emailInput=[...panel.querySelectorAll('input')].find(el=>el.type==='email');
-      if(!emailInput)return;
+      if(!emailInput)return false;
       const label=document.createElement('label');
       label.id='compassu-institution-label';
       label.textContent='Institution';
@@ -146,7 +150,11 @@ export default function AdminInstitutionEnhancer(){
       institutionInput.insertAdjacentElement('beforebegin',label);
 
       const batchText=[...panel.querySelectorAll('p')].find(p=>p.textContent?.includes('First Name, Last Name, and Email'));
-      if(batchText)batchText.textContent='Upload an Excel or CSV file with First Name, Last Name, Email, and Institution columns. Nothing is sent until you review and confirm.';
+      if(batchText){
+        const next='Upload an Excel or CSV file with First Name, Last Name, Email, and Institution columns. Nothing is sent until you review and confirm.';
+        if(batchText.textContent!==next)batchText.textContent=next;
+      }
+      return true;
     }
 
     function getInstitutionForRow(row){
@@ -158,13 +166,15 @@ export default function AdminInstitutionEnhancer(){
     function applyFilter(){
       document.querySelectorAll('.adminTable tbody tr').forEach(row=>{
         const institution=normalize(row.querySelector('[data-compassu-institution-cell]')?.textContent);
-        row.style.display=!filterValue||institution===filterValue?'':'none';
+        const nextDisplay=!filterValue||institution===filterValue?'':'none';
+        if(row.style.display!==nextDisplay)row.style.display=nextDisplay;
       });
     }
 
     function enhanceTable(){
       const table=document.querySelector('.adminTable');
-      if(!table)return;
+      if(!table)return false;
+      let changed=false;
       const headerRow=table.querySelector('thead tr');
       const firstHeader=headerRow?.querySelector('th');
       if(firstHeader&&!headerRow.querySelector('[data-compassu-institution-head]')){
@@ -172,6 +182,7 @@ export default function AdminInstitutionEnhancer(){
         th.textContent='Institution';
         th.dataset.compassuInstitutionHead='1';
         firstHeader.insertAdjacentElement('afterend',th);
+        changed=true;
       }
       table.querySelectorAll('tbody tr').forEach(row=>{
         const firstCell=row.querySelector('td');
@@ -180,17 +191,21 @@ export default function AdminInstitutionEnhancer(){
           td=document.createElement('td');
           td.dataset.compassuInstitutionCell='1';
           firstCell.insertAdjacentElement('afterend',td);
+          changed=true;
         }
-        if(td)td.textContent=getInstitutionForRow(row);
+        if(td){
+          const nextValue=getInstitutionForRow(row);
+          if(td.textContent!==nextValue){td.textContent=nextValue;changed=true}
+        }
       });
       applyFilter();
+      return changed;
     }
-
-    function htmlEscape(v){return String(v).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;').replaceAll('>','&gt;')}
 
     function enhanceFilter(){
       const actions=document.querySelector('.adminAccounts .adminPanelActions');
-      if(!actions)return;
+      if(!actions)return false;
+      let changed=false;
       let select=document.getElementById('compassu-institution-filter');
       if(!select){
         select=document.createElement('select');
@@ -200,11 +215,17 @@ export default function AdminInstitutionEnhancer(){
         select.style.minWidth='210px';
         select.addEventListener('change',()=>{filterValue=select.value;applyFilter()});
         actions.insertAdjacentElement('afterbegin',select);
+        changed=true;
       }
       const institutions=[...new Set(overviewUsers.map(u=>normalize(u.institution)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-      const previous=filterValue;
-      select.innerHTML='<option value="">All institutions</option>'+institutions.map(v=>`<option value="${htmlEscape(v)}">${htmlEscape(v)}</option>`).join('');
-      if(institutions.includes(previous))select.value=previous;else{filterValue='';select.value=''}
+      const optionMarkup='<option value="">All institutions</option>'+institutions.map(v=>`<option value="${htmlEscape(v)}">${htmlEscape(v)}</option>`).join('');
+      if(select.innerHTML!==optionMarkup){
+        const previous=filterValue;
+        select.innerHTML=optionMarkup;
+        if(institutions.includes(previous))select.value=previous;else{filterValue='';select.value=''}
+        changed=true;
+      }
+      return changed;
     }
 
     function enhanceDashboard(){
@@ -212,7 +233,11 @@ export default function AdminInstitutionEnhancer(){
       enhanceFilter();
       enhanceTable();
     }
-    function refreshDashboard(){setTimeout(enhanceDashboard,0)}
+    function scheduleEnhance(){
+      if(scheduled)return;
+      scheduled=true;
+      requestAnimationFrame(()=>{scheduled=false;enhanceDashboard()});
+    }
 
     const fileListener=e=>{
       const input=e.target;
@@ -220,9 +245,9 @@ export default function AdminInstitutionEnhancer(){
     };
     document.addEventListener('change',fileListener,true);
 
-    const observer=new MutationObserver(()=>enhanceDashboard());
+    const observer=new MutationObserver(()=>scheduleEnhance());
     observer.observe(document.body,{childList:true,subtree:true});
-    enhanceDashboard();
+    scheduleEnhance();
 
     return()=>{
       window.fetch=originalFetch;
