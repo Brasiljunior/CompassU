@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { exportInstitutionalAnalyticsPdf } from './institutionalAnalyticsPdf';
 
 const SUPABASE_URL=process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -8,7 +9,7 @@ const readSession=()=>{try{return JSON.parse(localStorage.getItem('compassu_sess
 const labelize=v=>String(v||'').replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase());
 
 export default function AdminAnalyticsPanel(){
-  const[session,setSession]=useState(null),[analytics,setAnalytics]=useState(null),[institutions,setInstitutions]=useState([]),[institution,setInstitution]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
+  const[session,setSession]=useState(null),[analytics,setAnalytics]=useState(null),[institutions,setInstitutions]=useState([]),[institution,setInstitution]=useState(''),[busy,setBusy]=useState(false),[exporting,setExporting]=useState(false),[error,setError]=useState('');
 
   const headers=current=>({apikey:SUPABASE_KEY,'Content-Type':'application/json',Authorization:`Bearer ${current?.access_token||''}`});
 
@@ -30,6 +31,14 @@ export default function AdminAnalyticsPanel(){
       if(!r.ok)throw new Error(body?.message||body?.error||body?.hint||'Unable to load institutional analytics');
       setAnalytics(body);
     }catch(e){setAnalytics(null);setError(e.message)}finally{setBusy(false)}
+  }
+
+  async function exportReport(){
+    if(!analytics||exporting)return;
+    setExporting(true);setError('');
+    try{await exportInstitutionalAnalyticsPdf({analytics,institution})}
+    catch(e){setError(e?.message||'Unable to generate the institutional analytics report.')}
+    finally{setExporting(false)}
   }
 
   useEffect(()=>{
@@ -63,7 +72,11 @@ export default function AdminAnalyticsPanel(){
   return <section className="analyticsPanel adminPanel">
     <div className="analyticsHead">
       <div><div className="adminKicker">INSTITUTIONAL INTELLIGENCE</div><h2>Institutional Analytics</h2><p>Aggregate participation, student profile, career-cluster, major, and career insights based on each student's latest completed CompassU assessment.</p></div>
-      <div className="analyticsControls"><select value={institution} onChange={e=>{const v=e.target.value;setInstitution(v);loadAnalytics(session,v)}}><option value="">All Institutions</option>{institutions.map(v=><option key={v} value={v}>{v}</option>)}</select><button className="btn primary" disabled={busy} onClick={()=>loadAnalytics()}>{busy?'Refreshing…':'Refresh Analytics'}</button></div>
+      <div className="analyticsControls">
+        <select value={institution} onChange={e=>{const v=e.target.value;setInstitution(v);loadAnalytics(session,v)}}><option value="">All Institutions</option>{institutions.map(v=><option key={v} value={v}>{v}</option>)}</select>
+        <button className="btn ghost" disabled={!analytics||busy||exporting} onClick={exportReport}>{exporting?'Generating PDF…':'Export Analytics PDF'}</button>
+        <button className="btn primary" disabled={busy} onClick={()=>loadAnalytics()}>{busy?'Refreshing…':'Refresh Analytics'}</button>
+      </div>
     </div>
     {busy&&!analytics&&<div className="analyticsLoading">Loading institutional analytics…</div>}
     {error&&<div className="error adminNotice">{error}</div>}
