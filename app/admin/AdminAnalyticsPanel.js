@@ -33,11 +33,22 @@ export default function AdminAnalyticsPanel(){
   }
 
   useEffect(()=>{
-    const s=readSession();
-    if(!s?.access_token)return;
-    setSession(s);
-    loadInstitutions(s);
-    loadAnalytics(s,'');
+    let activeToken='';
+    const syncSession=()=>{
+      const s=readSession();
+      const token=s?.access_token||'';
+      if(token===activeToken)return;
+      activeToken=token;
+      if(!token){setSession(null);setAnalytics(null);return;}
+      setSession(s);
+      loadInstitutions(s);
+      loadAnalytics(s,'');
+    };
+    syncSession();
+    const timer=setInterval(syncSession,500);
+    const onStorage=e=>{if(e.key==='compassu_session')syncSession()};
+    window.addEventListener('storage',onStorage);
+    return()=>{clearInterval(timer);window.removeEventListener('storage',onStorage)};
   },[]);
 
   const p=analytics?.participation||{};
@@ -54,6 +65,7 @@ export default function AdminAnalyticsPanel(){
       <div><div className="adminKicker">INSTITUTIONAL INTELLIGENCE</div><h2>Institutional Analytics</h2><p>Aggregate participation, student profile, career-cluster, major, and career insights based on each student's latest completed CompassU assessment.</p></div>
       <div className="analyticsControls"><select value={institution} onChange={e=>{const v=e.target.value;setInstitution(v);loadAnalytics(session,v)}}><option value="">All Institutions</option>{institutions.map(v=><option key={v} value={v}>{v}</option>)}</select><button className="btn primary" disabled={busy} onClick={()=>loadAnalytics()}>{busy?'Refreshing…':'Refresh Analytics'}</button></div>
     </div>
+    {busy&&!analytics&&<div className="analyticsLoading">Loading institutional analytics…</div>}
     {error&&<div className="error adminNotice">{error}</div>}
     {analytics&&<>
       <div className="analyticsStats"><Metric label="Assigned accounts" value={p.assigned_accounts??0}/><Metric label="Students started" value={p.started_students??0}/><Metric label="Students completed" value={p.completed_students??0}/><Metric label="Completion rate" value={`${p.completion_rate??0}%`}/><Metric label="Not completed" value={p.not_completed_students??0}/></div>
