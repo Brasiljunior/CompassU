@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { exportInstitutionalAnalyticsPdf } from './institutionalAnalyticsPdf';
+import { exportInstitutionComparisonPdf } from './institutionComparisonPdf';
 
 const SUPABASE_URL=process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -13,7 +14,7 @@ export default function AdminAnalyticsPanel(){
   const[session,setSession]=useState(null),[analytics,setAnalytics]=useState(null),[institutions,setInstitutions]=useState([]),[institution,setInstitution]=useState('');
   const[draftStartDate,setDraftStartDate]=useState(''),[draftEndDate,setDraftEndDate]=useState(''),[appliedStartDate,setAppliedStartDate]=useState(''),[appliedEndDate,setAppliedEndDate]=useState('');
   const[busy,setBusy]=useState(false),[exporting,setExporting]=useState(false),[error,setError]=useState('');
-  const[comparisonSelection,setComparisonSelection]=useState([]),[comparison,setComparison]=useState(null),[compareBusy,setCompareBusy]=useState(false),[compareError,setCompareError]=useState('');
+  const[comparisonSelection,setComparisonSelection]=useState([]),[comparison,setComparison]=useState(null),[compareBusy,setCompareBusy]=useState(false),[compareError,setCompareError]=useState(''),[comparisonExporting,setComparisonExporting]=useState(false);
   const headers=current=>({apikey:SUPABASE_KEY,'Content-Type':'application/json',Authorization:`Bearer ${current?.access_token||''}`});
 
   async function loadInstitutions(current){
@@ -52,6 +53,13 @@ export default function AdminAnalyticsPanel(){
       const body=await r.json();if(!r.ok)throw new Error(body?.message||body?.error||body?.hint||'Unable to load institutional comparison');setComparison(body);
     }catch(e){setComparison(null);setCompareError(e.message)}finally{setCompareBusy(false)}
   }
+  async function exportComparisonReport(){
+    if(!comparison?.institutions?.length||comparisonExporting)return;
+    setComparisonExporting(true);setCompareError('');
+    try{await exportInstitutionComparisonPdf({comparison,startDate:appliedStartDate,endDate:appliedEndDate})}
+    catch(e){setCompareError(e?.message||'Unable to generate the institution comparison PDF.')}
+    finally{setComparisonExporting(false)}
+  }
 
   useEffect(()=>{let activeToken='';const syncSession=()=>{const s=readSession();const token=s?.access_token||'';if(token===activeToken)return;activeToken=token;if(!token){setSession(null);setAnalytics(null);setComparison(null);return}setSession(s);loadInstitutions(s);loadAnalytics(s,'','','')};syncSession();const timer=setInterval(syncSession,500);const onStorage=e=>{if(e.key==='compassu_session')syncSession()};window.addEventListener('storage',onStorage);return()=>{clearInterval(timer);window.removeEventListener('storage',onStorage)}},[]);
 
@@ -77,7 +85,7 @@ export default function AdminAnalyticsPanel(){
     <div className="analyticsCard"><h3>Top Career Alignments</h3><p className="analyticsSub">Recurring careers connected to students' Top 3 recommended majors.</p><table className="analyticsTable"><thead><tr><th>Career</th><th>Students</th></tr></thead><tbody>{careers.slice(0,10).map(c=><tr key={c.occupation_id}><td><b>{c.occupation_name}</b>{c.soc_code&&<span>SOC {c.soc_code}</span>}</td><td>{c.student_count}</td></tr>)}</tbody></table>{!careers.length&&<div className="adminEmpty">No career reaches the current privacy reporting threshold yet.</div>}</div>
   </div><div className="analyticsPrivacy">Privacy safeguard: categories representing fewer than {analytics?.privacy?.small_cell_threshold??5} students are suppressed. Reporting-period filtering is applied to assessment activity before aggregate results are displayed.</div></>}
 
-  <div className="comparisonSection"><div className="comparisonHead"><div><div className="adminKicker">STAGE 2B</div><h2>Compare Institutions</h2><p>Compare participating institutions side-by-side using the same privacy safeguards and reporting period shown above.</p></div><button className="btn primary" disabled={compareBusy||comparisonSelection.length<2} onClick={loadComparison}>{compareBusy?'Comparing…':'Compare Selected'}</button></div>
+  <div className="comparisonSection"><div className="comparisonHead"><div><div className="adminKicker">STAGE 2B</div><h2>Compare Institutions</h2><p>Compare participating institutions side-by-side using the same privacy safeguards and reporting period shown above.</p></div><div className="comparisonActions"><button className="btn ghost" disabled={!comparison?.institutions?.length||compareBusy||comparisonExporting} onClick={exportComparisonReport}>{comparisonExporting?'Generating PDF…':'Export Comparison PDF'}</button><button className="btn primary" disabled={compareBusy||comparisonSelection.length<2} onClick={loadComparison}>{compareBusy?'Comparing…':'Compare Selected'}</button></div></div>
     <div className="comparisonPicker">{institutions.map(name=><label key={name} className={comparisonSelection.includes(name)?'selected':''}><input type="checkbox" checked={comparisonSelection.includes(name)} onChange={()=>toggleComparisonInstitution(name)}/><span>{name}</span></label>)}{!institutions.length&&<div className="adminEmpty">No institutions are available for comparison.</div>}</div>
     <div className="comparisonMeta">{comparisonSelection.length} selected{(appliedStartDate||appliedEndDate)&&<> · Reporting period {appliedStartDate||'Beginning of records'} through {appliedEndDate||'Present'}</>}</div>
     {compareError&&<div className="error adminNotice">{compareError}</div>}
