@@ -1,5 +1,6 @@
 -- CompassU Stage 2A: reporting-period institutional analytics
 -- Adds optional completed-assessment date filters without changing scoring or recommendation logic.
+-- IMPORTANT: select each student's latest completed assessment overall first, then apply the reporting period.
 -- Install after the Stage 1 analytics service.
 
 create or replace function public.get_institutional_analytics_v2(
@@ -31,14 +32,17 @@ begin
     where nullif(trim(ai.institution),'') is not null
       and (p_institution is null or ai.institution=p_institution)
   ),
-  latest_completed as (
+  latest_completed_overall as (
     select distinct on (a.user_id) a.user_id,a.id as attempt_id,a.completed_at
     from public.assessment_attempts a
     join assigned x on x.user_id=a.user_id
     where a.status='completed' and a.completed_at is not null
-      and (p_start_date is null or a.completed_at >= p_start_date::timestamptz)
-      and (p_end_date is null or a.completed_at < (p_end_date+1)::timestamptz)
     order by a.user_id,a.completed_at desc,a.id desc
+  ),
+  latest_completed as (
+    select * from latest_completed_overall
+    where (p_start_date is null or completed_at >= p_start_date::timestamptz)
+      and (p_end_date is null or completed_at < (p_end_date+1)::timestamptz)
   ),
   started_in_period as (
     select distinct a.user_id
@@ -126,4 +130,4 @@ $$;
 
 revoke all on function public.get_institutional_analytics_v2(text,date,date) from public;
 grant execute on function public.get_institutional_analytics_v2(text,date,date) to authenticated;
-comment on function public.get_institutional_analytics_v2(text,date,date) is 'CompassU Stage 2A institutional analytics with optional reporting-period filters, latest completed assessment per student, and small-cell suppression threshold 5.';
+comment on function public.get_institutional_analytics_v2(text,date,date) is 'CompassU Stage 2A institutional analytics with optional reporting-period filters, latest completed assessment per student overall, and small-cell suppression threshold 5.';
