@@ -1,6 +1,7 @@
 -- CompassU Stage 2C: institutional trend analytics
 -- Compares consecutive reporting periods using the Stage 2A analytics service.
 -- The latest completed assessment overall is the canonical assessment for each student.
+-- Stage 3B: tenant administrators are restricted to institutions in their authorized tenant scope.
 
 create or replace function public.get_institutional_trends(
   p_institution text default null,
@@ -22,9 +23,22 @@ declare
   v_period_start date;
   v_item jsonb;
 begin
-  if auth.uid() is null or not public.is_compassu_admin() then
+  if auth.uid() is null then
     raise exception 'Administrator access required';
   end if;
+
+  if not public.is_compassu_master_admin() then
+    if p_institution is null or not exists (
+      select 1
+      from public.tenant_institutions ti
+      where ti.active
+        and lower(trim(ti.name)) = lower(trim(p_institution))
+        and public.can_access_institution(ti.id)
+    ) then
+      raise exception 'Administrator access required';
+    end if;
+  end if;
+
   if p_period_months < 1 or p_period_months > 60 then
     raise exception 'Period months must be between 1 and 60';
   end if;
@@ -65,4 +79,4 @@ $$;
 
 revoke all on function public.get_institutional_trends(text,integer,integer,date) from public;
 grant execute on function public.get_institutional_trends(text,integer,integer,date) to authenticated;
-comment on function public.get_institutional_trends(text,integer,integer,date) is 'CompassU Stage 2C admin-only longitudinal institutional analytics across consecutive reporting periods with inherited small-cell suppression.';
+comment on function public.get_institutional_trends(text,integer,integer,date) is 'CompassU Stage 2C tenant-aware longitudinal institutional analytics across consecutive reporting periods with inherited small-cell suppression.';
