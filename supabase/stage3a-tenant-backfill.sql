@@ -58,8 +58,11 @@ where not exists (
 );
 
 -- Link legacy assignments only when there is exactly one normalized tenant-institution match.
+-- PostgreSQL does not support min(uuid), so use array_agg ordered by uuid text.
 with unique_matches as (
-  select normalized_name,min(id) as tenant_institution_id
+  select
+    normalized_name,
+    (array_agg(id order by id::text))[1] as tenant_institution_id
   from public.tenant_institutions
   group by normalized_name
   having count(*)=1
