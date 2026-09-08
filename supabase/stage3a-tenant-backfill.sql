@@ -31,23 +31,28 @@ select
 from missing m
 on conflict (slug) do nothing;
 
+-- Link to the existing bigint institution catalog only when the normalized name has exactly one match.
+-- Ambiguous or absent catalog matches remain NULL rather than guessing.
 with legacy as (
   select distinct trim(ai.institution) as institution_name,
     lower(trim(ai.institution)) as normalized_name
   from public.account_institutions ai
   where nullif(trim(ai.institution),'') is not null
+), catalog_unique as (
+  select lower(trim(i.name)) as normalized_name, min(i.id) as catalog_institution_id
+  from public.institutions i
+  where nullif(trim(i.name),'') is not null
+  group by lower(trim(i.name))
+  having count(*)=1
 )
 insert into public.tenant_institutions(organization_id,name,catalog_institution_id)
 select
   o.id,
   l.institution_name,
-  (
-    select min(i.id)
-    from public.institutions i
-    where lower(trim(i.name))=l.normalized_name
-  )
+  cu.catalog_institution_id
 from legacy l
 join public.organizations o on o.slug='legacy-' || substr(md5(l.normalized_name),1,16)
+left join catalog_unique cu on cu.normalized_name=l.normalized_name
 where not exists (
   select 1 from public.tenant_institutions ti where ti.normalized_name=l.normalized_name
 );
