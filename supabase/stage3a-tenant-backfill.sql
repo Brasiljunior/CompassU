@@ -5,13 +5,12 @@
 -- Future district/system grouping is an explicit administrative operation; this script does not infer relationships.
 
 alter table public.account_institutions
-  add column if not exists institution_id uuid references public.institutions(id) on delete restrict;
+  add column if not exists tenant_institution_id uuid references public.tenant_institutions(id) on delete restrict;
 
-create index if not exists account_institutions_institution_id_idx
-  on public.account_institutions(institution_id);
+create index if not exists account_institutions_tenant_institution_id_idx
+  on public.account_institutions(tenant_institution_id);
 
--- Create one independent organization for every legacy institution name that does not yet map
--- to an institution record. The hash suffix makes the generated slug deterministic and collision-safe.
+-- Create one independent organization for each distinct legacy institution name that does not yet map.
 with legacy as (
   select distinct trim(ai.institution) as institution_name,
     lower(trim(ai.institution)) as normalized_name
@@ -21,7 +20,7 @@ with legacy as (
   select l.*
   from legacy l
   where not exists (
-    select 1 from public.institutions i where i.normalized_name=l.normalized_name
+    select 1 from public.tenant_institutions ti where ti.normalized_name=l.normalized_name
   )
 )
 insert into public.organizations(name,slug,organization_type)
@@ -38,45 +37,67 @@ with legacy as (
   from public.account_institutions ai
   where nullif(trim(ai.institution),'') is not null
 )
-insert into public.institutions(organization_id,name)
-select o.id,l.institution_name
+insert into public.tenant_institutions(organization_id,name,catalog_institution_id)
+select
+  o.id,
+  l.institution_name,
+  (
+    select min(i.id)
+    from public.institutions i
+    where lower(trim(i.name))=l.normalized_name
+  )
 from legacy l
 join public.organizations o on o.slug='legacy-' || substr(md5(l.normalized_name),1,16)
 where not exists (
-  select 1 from public.institutions i where i.normalized_name=l.normalized_name
+  select 1 from public.tenant_institutions ti where ti.normalized_name=l.normalized_name
 );
 
--- Link legacy assignments only when there is exactly one normalized institution match.
+-- Link legacy assignments only when there is exactly one normalized tenant-institution match.
 with unique_matches as (
-  select normalized_name,min(id) as institution_id
-  from public.institutions
+  select normalized_name,min(id) as tenant_institution_id
+  from public.tenant_institutions
   group by normalized_name
   having count(*)=1
 )
 update public.account_institutions ai
-set institution_id=um.institution_id
+set tenant_institution_id=um.tenant_institution_id
 from unique_matches um
 where nullif(trim(ai.institution),'') is not null
   and lower(trim(ai.institution))=um.normalized_name
-  and ai.institution_id is distinct from um.institution_id;
+  and ai.tenant_institution_id is distinct from um.tenant_institution_id;
 
--- Validation view: expected result after a clean backfill is zero unlinked or mismatched rows.
-create or replace view public.stage3a_tenant_backfill_validation as
-select
-  count(*) filter (where nullif(trim(ai.institution),'') is not null)::int as legacy_assignments,
-  count(*) filter (where nullif(trim(ai.institution),'') is not null and ai.institution_id is not null)::int as linked_assignments,
-  count(*) filter (where nullif(trim(ai.institution),'') is not null and ai.institution_id is null)::int as unlinked_assignments,
-  count(*) filter (
-    where ai.institution_id is not null
-      and lower(trim(ai.institution)) is distinct from i.normalized_name
-  )::int as mismatched_assignments,
-  (select count(*)::int from public.organizations where active) as active_organizations,
-  (select count(*)::int from public.institutions where active) as active_institutions
-from public.account_institutions ai
-left join public.institutions i on i.id=ai.institution_id;
+-- Master-admin-only validation function.
+create or replace function public.stage3a_tenant_backfill_validation()
+returns table (
+  legacy_assignments integer,
+  linked_assignments integer,
+  unlinked_assignments integer,
+  mismatched_assignments integer,
+  active_organizations integer,
+  active_tenant_institutions integer
+)
+language sql
+stable
+security definer
+set search_path = public, auth
+as $$
+  select
+    count(*) filter (where nullif(trim(ai.institution),'') is not null)::int,
+    count(*) filter (where nullif(trim(ai.institution),'') is not null and ai.tenant_institution_id is not null)::int,
+    count(*) filter (where nullif(trim(ai.institution),'') is not null and ai.tenant_institution_id is null)::int,
+    count(*) filter (
+      where ai.tenant_institution_id is not null
+        and lower(trim(ai.institution)) is distinct from ti.normalized_name
+    )::int,
+    (select count(*)::int from public.organizations where active),
+    (select count(*)::int from public.tenant_institutions where active)
+  from public.account_institutions ai
+  left join public.tenant_institutions ti on ti.id=ai.tenant_institution_id
+  where public.is_compassu_master_admin();
+$$;
 
-revoke all on public.stage3a_tenant_backfill_validation from public,anon;
-grant select on public.stage3a_tenant_backfill_validation to authenticated;
+revoke all on function public.stage3a_tenant_backfill_validation() from public;
+grant execute on function public.stage3a_tenant_backfill_validation() to authenticated;
 
-comment on column public.account_institutions.institution_id is
-  'Stage 3 durable institution reference. Legacy institution text is preserved during migration.';
+comment on column public.account_institutions.tenant_institution_id is
+  'Stage 3 durable tenant-institution reference. Legacy institution text is preserved during migration.';
