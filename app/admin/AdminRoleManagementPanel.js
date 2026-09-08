@@ -15,8 +15,9 @@ async function request(path,session,body){
 }
 
 export default function AdminRoleManagementPanel(){
-  const[session,setSession]=useState(null),[context,setContext]=useState([]),[organizations,setOrganizations]=useState([]),[institutions,setInstitutions]=useState([]),[assignments,setAssignments]=useState([]),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
+  const[session,setSession]=useState(null),[context,setContext]=useState([]),[organizations,setOrganizations]=useState([]),[institutions,setInstitutions]=useState([]),[assignments,setAssignments]=useState([]),[invitations,setInvitations]=useState([]),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[inviteLink,setInviteLink]=useState('');
   const[form,setForm]=useState({email:'',role:'institution_admin',organization_id:'',tenant_institution_id:''});
+  const[inviteForm,setInviteForm]=useState({email:'',role:'institution_admin',organization_id:'',tenant_institution_id:'',expires_days:7});
 
   const isMaster=context.some(c=>c.role==='master_admin');
   const systemOrgIds=useMemo(()=>new Set(context.filter(c=>c.role==='system_admin').map(c=>c.organization_id)),[context]);
@@ -35,41 +36,39 @@ export default function AdminRoleManagementPanel(){
     return organizations.filter(o=>systemOrgIds.has(o.id)||institutions.some(i=>i.organization_id===o.id&&institutionAdminIds.has(i.id)));
   },[organizations,institutions,isMaster,systemOrgIds,institutionAdminIds]);
 
-  const filteredInstitutions=useMemo(()=>{
+  const institutionsFor=(targetForm)=>{
     let rows=institutions;
-    if(form.organization_id)rows=rows.filter(i=>i.organization_id===form.organization_id);
-    if(!isMaster&&form.role==='institution_admin')rows=rows.filter(i=>systemOrgIds.has(i.organization_id));
-    if(!isMaster&&form.role==='counselor')rows=rows.filter(i=>systemOrgIds.has(i.organization_id)||institutionAdminIds.has(i.id));
+    if(targetForm.organization_id)rows=rows.filter(i=>i.organization_id===targetForm.organization_id);
+    if(!isMaster&&targetForm.role==='institution_admin')rows=rows.filter(i=>systemOrgIds.has(i.organization_id));
+    if(!isMaster&&targetForm.role==='counselor')rows=rows.filter(i=>systemOrgIds.has(i.organization_id)||institutionAdminIds.has(i.id));
     return rows;
-  },[institutions,form.organization_id,form.role,isMaster,systemOrgIds,institutionAdminIds]);
+  };
 
   async function load(current=readSession()){
     if(!current?.access_token){setSession(null);setContext([]);return}
     setSession(current);setBusy(true);setError('');
     try{
-      const [ctx,orgs,insts,roles]=await Promise.all([
+      const [ctx,orgs,insts,roles,invites]=await Promise.all([
         request('/rest/v1/rpc/get_compassu_admin_context',current,{}),
         request('/rest/v1/organizations?select=id,name,organization_type,active&active=eq.true&order=name.asc',current),
         request('/rest/v1/tenant_institutions?select=id,name,organization_id,active&active=eq.true&order=name.asc',current),
-        request('/rest/v1/rpc/get_compassu_role_assignments',current,{})
+        request('/rest/v1/rpc/get_compassu_role_assignments',current,{}),
+        request('/rest/v1/rpc/get_compassu_admin_invitations',current,{}).catch(()=>[])
       ]);
-      setContext(Array.isArray(ctx)?ctx:[]);setOrganizations(Array.isArray(orgs)?orgs:[]);setInstitutions(Array.isArray(insts)?insts:[]);setAssignments(Array.isArray(roles)?roles:[]);
+      setContext(Array.isArray(ctx)?ctx:[]);setOrganizations(Array.isArray(orgs)?orgs:[]);setInstitutions(Array.isArray(insts)?insts:[]);setAssignments(Array.isArray(roles)?roles:[]);setInvitations(Array.isArray(invites)?invites:[]);
     }catch(e){setError(e.message)}finally{setBusy(false)}
   }
 
   useEffect(()=>{
     let last='';
-    const sync=()=>{const s=readSession();const token=s?.access_token||'';if(token!==last){last=token;if(token)load(s);else{setSession(null);setContext([]);setAssignments([])}}};
+    const sync=()=>{const s=readSession();const token=s?.access_token||'';if(token!==last){last=token;if(token)load(s);else{setSession(null);setContext([]);setAssignments([]);setInvitations([])}}};
     sync();const timer=setInterval(sync,700);return()=>clearInterval(timer);
   },[]);
 
   useEffect(()=>{
     if(!availableRoles.includes(form.role)&&availableRoles.length)setForm(f=>({...f,role:availableRoles[0]}));
-  },[availableRoles,form.role]);
-
-  useEffect(()=>{
-    if(form.role==='system_admin'&&form.tenant_institution_id)setForm(f=>({...f,tenant_institution_id:''}));
-  },[form.role,form.tenant_institution_id]);
+    if(!availableRoles.includes(inviteForm.role)&&availableRoles.length)setInviteForm(f=>({...f,role:availableRoles[0]}));
+  },[availableRoles,form.role,inviteForm.role]);
 
   if(!session||!canManage)return null;
 
@@ -84,6 +83,26 @@ export default function AdminRoleManagementPanel(){
     }catch(e){setError(e.message)}finally{setBusy(false)}
   }
 
+  async function createInvitation(){
+    if(!inviteForm.email.trim())return setError('Enter the email address to invite.');
+    if(inviteForm.role==='system_admin'&&!inviteForm.organization_id)return setError('Select an organization for the System / District Administrator invitation.');
+    if(inviteForm.role!=='system_admin'&&!inviteForm.tenant_institution_id)return setError('Select an institution for this invitation.');
+    setBusy(true);setError('');setNotice('');setInviteLink('');
+    try{
+      const result=await request('/rest/v1/rpc/create_compassu_admin_invitation',session,{p_email:inviteForm.email.trim().toLowerCase(),p_role:inviteForm.role,p_organization_id:inviteForm.organization_id||null,p_tenant_institution_id:inviteForm.role==='system_admin'?null:(inviteForm.tenant_institution_id||null),p_expires_days:Number(inviteForm.expires_days)||7});
+      const row=Array.isArray(result)?result[0]:result;
+      if(!row?.invitation_token)throw new Error('Invitation was created but the secure token was not returned.');
+      const link=`${window.location.origin}/admin/accept?token=${encodeURIComponent(row.invitation_token)}`;
+      setInviteLink(link);setNotice('Administrator invitation created. Copy the secure link and send it only to the invited person.');setInviteForm(f=>({...f,email:''}));await load(session);
+    }catch(e){setError(e.message)}finally{setBusy(false)}
+  }
+
+  async function revokeInvitation(row){
+    if(!window.confirm(`Revoke the ${roleLabel[row.role]||row.role} invitation for ${row.email}?`))return;
+    setBusy(true);setError('');setNotice('');
+    try{const message=await request('/rest/v1/rpc/revoke_compassu_admin_invitation',session,{p_invitation_id:row.invitation_id});setNotice(typeof message==='string'?message:'Administrator invitation revoked.');await load(session)}catch(e){setError(e.message)}finally{setBusy(false)}
+  }
+
   async function deactivate(row){
     if(!window.confirm(`Deactivate ${roleLabel[row.role]||row.role} access for ${row.email}?`))return;
     setBusy(true);setError('');setNotice('');
@@ -95,28 +114,48 @@ export default function AdminRoleManagementPanel(){
 
   const selectedInstitution=institutions.find(i=>i.id===form.tenant_institution_id);
   const selectedOrg=form.organization_id||(selectedInstitution?.organization_id||'');
+  const selectedInviteInstitution=institutions.find(i=>i.id===inviteForm.tenant_institution_id);
+  const selectedInviteOrg=inviteForm.organization_id||(selectedInviteInstitution?.organization_id||'');
 
   return <section className="stage3bPanel">
     <div className="stage3bHead">
-      <div><div className="adminKicker">STAGE 3B · ROLE-BASED ADMINISTRATION</div><h2>Administrative Access</h2><p>Assign administrative responsibility without granting platform-wide access. Every role is bound to its authorized organization or institution.</p></div>
+      <div><div className="adminKicker">STAGE 3C · INSTITUTIONAL USER & ACCESS MANAGEMENT</div><h2>Administrative Access</h2><p>Manage existing administrators or securely invite new administrators without granting platform-wide access.</p></div>
       <button className="btn ghost" onClick={()=>load(session)} disabled={busy}>{busy?'Refreshing…':'Refresh Access'}</button>
     </div>
     <div className="stage3bContext">{context.map((c,i)=><span key={`${c.role}-${c.organization_id||''}-${c.tenant_institution_id||''}-${i}`}><b>{roleLabel[c.role]||c.role}</b>{c.scope_type==='platform'?'CompassU platform':c.institution_name||c.organization_name}</span>)}</div>
     {error&&<div className="error adminNotice">{error}</div>}{notice&&<div className="success adminNotice">{notice}</div>}
+
     <div className="stage3bGrid">
       <div className="stage3bCard">
-        <h3>Assign Administrative Role</h3><p>The person must already have a CompassU account. New-user provisioning will be handled in Stage 3C.</p>
+        <h3>Invite New Administrator</h3><p>Create a secure, email-bound invitation for someone who does not yet have administrative access.</p>
+        <label>Email address</label><input type="email" value={inviteForm.email} placeholder="administrator@example.edu" onChange={e=>setInviteForm({...inviteForm,email:e.target.value})}/>
+        <label>Role</label><select value={inviteForm.role} onChange={e=>setInviteForm({...inviteForm,role:e.target.value,tenant_institution_id:''})}>{availableRoles.map(r=><option key={r} value={r}>{roleLabel[r]}</option>)}</select>
+        <label>Organization / System</label><select value={selectedInviteOrg} onChange={e=>setInviteForm({...inviteForm,organization_id:e.target.value,tenant_institution_id:''})}><option value="">Select organization</option>{filteredOrganizations.map(o=><option value={o.id} key={o.id}>{o.name}</option>)}</select>
+        {inviteForm.role!=='system_admin'&&<><label>Institution</label><select value={inviteForm.tenant_institution_id} onChange={e=>{const inst=institutions.find(i=>i.id===e.target.value);setInviteForm({...inviteForm,tenant_institution_id:e.target.value,organization_id:inst?.organization_id||inviteForm.organization_id})}}><option value="">Select institution</option>{institutionsFor(inviteForm).map(i=><option value={i.id} key={i.id}>{i.name}</option>)}</select></>}
+        <label>Invitation expires</label><select value={inviteForm.expires_days} onChange={e=>setInviteForm({...inviteForm,expires_days:Number(e.target.value)})}><option value={3}>3 days</option><option value={7}>7 days</option><option value={14}>14 days</option><option value={30}>30 days</option></select>
+        <button className="btn primary wide stage3bSave" disabled={busy||!availableRoles.length} onClick={createInvitation}>{busy?'Creating…':'Create Secure Invitation'}</button>
+        {inviteLink&&<div className="stage3cInviteLink"><b>Secure invitation link</b><input readOnly value={inviteLink}/><button className="btn ghost wide" onClick={()=>navigator.clipboard?.writeText(inviteLink)}>Copy Invitation Link</button><small>The link is shown only after creation. CompassU stores only a cryptographic hash of the token.</small></div>}
+      </div>
+
+      <div className="stage3bCard">
+        <h3>Assign Existing Account</h3><p>Grant a role immediately when the person already has a CompassU account.</p>
         <label>Email address</label><input type="email" value={form.email} placeholder="administrator@example.edu" onChange={e=>setForm({...form,email:e.target.value})}/>
         <label>Role</label><select value={form.role} onChange={e=>setForm({...form,role:e.target.value,tenant_institution_id:''})}>{availableRoles.map(r=><option key={r} value={r}>{roleLabel[r]}</option>)}</select>
         <label>Organization / System</label><select value={selectedOrg} onChange={e=>setForm({...form,organization_id:e.target.value,tenant_institution_id:''})}><option value="">Select organization</option>{filteredOrganizations.map(o=><option value={o.id} key={o.id}>{o.name}</option>)}</select>
-        {form.role!=='system_admin'&&<><label>Institution</label><select value={form.tenant_institution_id} onChange={e=>{const inst=institutions.find(i=>i.id===e.target.value);setForm({...form,tenant_institution_id:e.target.value,organization_id:inst?.organization_id||form.organization_id})}}><option value="">Select institution</option>{filteredInstitutions.map(i=><option value={i.id} key={i.id}>{i.name}</option>)}</select></>}
+        {form.role!=='system_admin'&&<><label>Institution</label><select value={form.tenant_institution_id} onChange={e=>{const inst=institutions.find(i=>i.id===e.target.value);setForm({...form,tenant_institution_id:e.target.value,organization_id:inst?.organization_id||form.organization_id})}}><option value="">Select institution</option>{institutionsFor(form).map(i=><option value={i.id} key={i.id}>{i.name}</option>)}</select></>}
         <button className="btn primary wide stage3bSave" disabled={busy||!availableRoles.length} onClick={save}>{busy?'Saving…':'Assign Role'}</button>
         <div className="stage3bSafeguard">System Administrators cannot create other System Administrators. Institution Administrators can manage only Counselor / Advisor access within their institution.</div>
       </div>
-      <div className="stage3bCard stage3bAssignments">
-        <div className="stage3bCardHead"><div><h3>Current Role Assignments</h3><p>Only assignments within your authorized scope are shown.</p></div><b>{assignments.filter(a=>a.active).length} active</b></div>
-        <div className="stage3bTableWrap"><table><thead><tr><th>Administrator</th><th>Role</th><th>Scope</th><th>Status</th><th></th></tr></thead><tbody>{assignments.map((a,i)=><tr key={`${a.user_id}-${a.role}-${a.organization_id||''}-${a.tenant_institution_id||''}-${i}`}><td><b>{a.email}</b></td><td>{roleLabel[a.role]||a.role}</td><td><b>{a.institution_name||a.organization_name||'CompassU'}</b>{a.institution_name&&<span>{a.organization_name}</span>}</td><td><span className={`adminStatus ${a.active?'active':'suspended'}`}>{a.active?'Active':'Inactive'}</span></td><td>{a.active&&<button className="stage3bDeactivate" onClick={()=>deactivate(a)} disabled={busy}>Deactivate</button>}</td></tr>)}</tbody></table>{assignments.length===0&&<div className="adminEmpty">No tenant administrator roles have been assigned yet.</div>}</div>
-      </div>
+    </div>
+
+    <div className="stage3bCard stage3bAssignments stage3cInvitations">
+      <div className="stage3bCardHead"><div><h3>Administrator Invitations</h3><p>Pending, accepted, expired, and revoked invitations within your authorized scope.</p></div><b>{invitations.filter(a=>a.status==='pending').length} pending</b></div>
+      <div className="stage3bTableWrap"><table><thead><tr><th>Invitee</th><th>Role</th><th>Scope</th><th>Expires</th><th>Status</th><th></th></tr></thead><tbody>{invitations.map(a=><tr key={a.invitation_id}><td><b>{a.email}</b></td><td>{roleLabel[a.role]||a.role}</td><td><b>{a.institution_name||a.organization_name||'CompassU'}</b>{a.institution_name&&<span>{a.organization_name}</span>}</td><td>{a.expires_at?new Date(a.expires_at).toLocaleString():'—'}</td><td><span className={`adminStatus ${a.status==='pending'?'active':'suspended'}`}>{a.status}</span></td><td>{a.status==='pending'&&<button className="stage3bDeactivate" onClick={()=>revokeInvitation(a)} disabled={busy}>Revoke</button>}</td></tr>)}</tbody></table>{invitations.length===0&&<div className="adminEmpty">No administrator invitations yet.</div>}</div>
+    </div>
+
+    <div className="stage3bCard stage3bAssignments">
+      <div className="stage3bCardHead"><div><h3>Current Role Assignments</h3><p>Only assignments within your authorized scope are shown.</p></div><b>{assignments.filter(a=>a.active).length} active</b></div>
+      <div className="stage3bTableWrap"><table><thead><tr><th>Administrator</th><th>Role</th><th>Scope</th><th>Status</th><th></th></tr></thead><tbody>{assignments.map((a,i)=><tr key={`${a.user_id}-${a.role}-${a.organization_id||''}-${a.tenant_institution_id||''}-${i}`}><td><b>{a.email}</b></td><td>{roleLabel[a.role]||a.role}</td><td><b>{a.institution_name||a.organization_name||'CompassU'}</b>{a.institution_name&&<span>{a.organization_name}</span>}</td><td><span className={`adminStatus ${a.active?'active':'suspended'}`}>{a.active?'Active':'Inactive'}</span></td><td>{a.active&&<button className="stage3bDeactivate" onClick={()=>deactivate(a)} disabled={busy}>Deactivate</button>}</td></tr>)}</tbody></table>{assignments.length===0&&<div className="adminEmpty">No tenant administrator roles have been assigned yet.</div>}</div>
     </div>
   </section>;
 }
