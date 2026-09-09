@@ -5,8 +5,11 @@ import { buildMonthlyAnalyticsPdf, buildMonthlyTrendsPdf, buildMonthlyExecutiveP
 export const runtime='nodejs';
 export const maxDuration=60;
 
-const SUPABASE_URL=process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_KEY=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+// These are CompassU's public Supabase client values (the same values already shipped to the browser).
+// Keeping a public-only fallback lets preview server functions operate when Vercel does not expose
+// NEXT_PUBLIC_* values at function runtime. No service-role or private database credential is used here.
+const SUPABASE_URL=process.env.NEXT_PUBLIC_SUPABASE_URL||'https://xvvgalifibyqwebasalx.supabase.co';
+const SUPABASE_KEY=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY||'sb_publishable_lWtjaYYRk4hd1Bb-yKG3eA_CxF4CW9-';
 const RESEND_API_KEY=process.env.RESEND_API_KEY;
 const REPORT_FROM=process.env.COMPASSU_REPORT_FROM||'CompassU <reports@getcompassu.com>';
 
