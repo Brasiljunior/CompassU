@@ -1,0 +1,13 @@
+.batchHistory{margin-top:18px;padding-top:16px;border-top:1px solid #e7eaf0}
+.batchHistoryHead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
+.batchHistoryHead h4{margin:0 0 4px;font-size:15px}
+.batchHistoryHead p{margin:0;font-size:11px;line-height:1.45;color:#667085}
+.batchHistoryHead .btn{flex:0 0 auto;margin:0;padding:7px 9px;font-size:11px}
+.batchHistoryRow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid #edf0f5}
+.batchHistoryRow>div{min-width:0}
+.batchHistoryRow b,.batchHistoryRow span,.batchHistoryRow small{display:block}
+.batchHistoryRow b{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.batchHistoryRow span,.batchHistoryRow small{margin-top:3px;color:#667085;font-size:10px}
+.batchHistoryRow .btn{flex:0 0 auto;margin:0;padding:7px 9px;font-size:10px}
+.batchHistoryEmpty{padding:12px;background:#f8fafc;border-radius:9px;color:#667085;font-size:11px;line-height:1.45}
+@media(max-width:700px){.batchHistoryHead,.batchHistoryRow{display:block}.batchHistoryHead .btn,.batchHistoryRow .btn{width:100%;margin-top:9px}.batchHistoryRow{padding:12px 0}}
