@@ -1,0 +1,8 @@
+:root{--compassu-navy:#07355b;--compassu-teal:#2499aa;--compassu-gold:#d7a21f}
+.brand{font-size:0!important;display:inline-flex!important;align-items:center!important;min-width:224px;height:62px;background:url('/compassu-logo.svg') left center/220px auto no-repeat!important}
+.brand:before{content:none!important;display:none!important}.brand span{display:none!important}.brandBtn{padding:0!important}
+.heroCard:after{content:''!important;width:185px;height:185px;right:-34px;bottom:-48px;background:url('/compassu-logo.svg') left center/420px auto no-repeat;opacity:.085;transform:none!important}
+.panel:before{content:'YOUR NEXT CHAPTER STARTS HERE'!important;padding-left:27px;background:url('/compassu-logo.svg') left center/22px auto no-repeat}
+.dashboard:before{content:'YOUR PERSONALIZED ROADMAP • RESEARCH-INFORMED CAREER DISCOVERY'!important;padding-left:27px;background:url('/compassu-logo.svg') left center/22px auto no-repeat}
+.sectionTitle:before{content:''!important;display:inline-block;width:18px;height:18px;margin-right:7px;vertical-align:-4px;background:url('/compassu-logo.svg') left center/38px auto no-repeat}
+@media(max-width:600px){.brand{min-width:170px;height:56px;background-size:168px auto!important}}
