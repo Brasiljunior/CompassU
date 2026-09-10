@@ -1,6 +1,7 @@
 import './admin.css';
 import './batch-guard.css';
 import './batch-history.css';
+import './monthly-recipient-controls.css';
 import './analytics.css';
 import './activity-trend.css';
 import './account-management-scroll.css';

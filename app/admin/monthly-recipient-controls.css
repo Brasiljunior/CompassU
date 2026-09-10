@@ -1,0 +1,6 @@
+.monthlyRecipients{display:grid;gap:7px;min-width:240px}
+.monthlyRecipients>div{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 8px;border:1px solid #e7eaf0;border-radius:9px;background:#fbfcfe}
+.monthlyRecipients>div span{min-width:0;margin:0!important;color:#475467!important;font-size:11px!important;overflow-wrap:anywhere}
+.monthlyRecipients button{flex:0 0 auto;border:1px solid #fecdca;border-radius:7px;background:#fff;color:#b42318;padding:5px 7px;font-size:10px;font-weight:800;cursor:pointer}
+.monthlyRecipients button:hover{background:#fef3f2}
+.monthlyRecipients button:disabled{opacity:.55;cursor:not-allowed}
