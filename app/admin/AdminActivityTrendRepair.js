@@ -24,6 +24,10 @@ function buildTrend(users){
   return days;
 }
 
+const hasRecordedActivity=trend=>(trend||[]).some(day=>
+  Number(day?.new_accounts||0)>0||Number(day?.completed_surveys||0)>0
+);
+
 export default function AdminActivityTrendRepair(){
   useEffect(()=>{
     const originalFetch=window.fetch.bind(window);
@@ -35,13 +39,16 @@ export default function AdminActivityTrendRepair(){
         const request=JSON.parse(init.body);
         if(request?.action!=='overview')return response;
         const body=await response.clone().json();
-        if(Array.isArray(body?.trend)&&body.trend.length===30)return response;
-
-        let users=Array.isArray(body?.users)?body.users:[];
+        const users=Array.isArray(body?.users)?body.users:[];
         // The overview user rows are the authoritative source already used by the dashboard.
         // If they are absent, preserve the server response rather than exposing any broader query.
         if(!users.length)return response;
-        const repaired={...body,trend:buildTrend(users)};
+        const rebuiltTrend=buildTrend(users);
+        const serverTrendIsUsable=Array.isArray(body?.trend)&&body.trend.length===30&&(
+          hasRecordedActivity(body.trend)||!hasRecordedActivity(rebuiltTrend)
+        );
+        if(serverTrendIsUsable)return response;
+        const repaired={...body,trend:rebuiltTrend};
         return new Response(JSON.stringify(repaired),{status:response.status,statusText:response.statusText,headers:response.headers});
       }catch{return response}
     };
