@@ -31,7 +31,7 @@ export default function AdminMonthlyReportingPanel(){
     }catch(e){setError(e.message||'Unable to load monthly reporting configuration.')}finally{setBusy(false)}
   }
 
-  useEffect(()=>{let token='';const sync=()=>{const s=readSession();const next=s?.access_token||'';if(next===token)return;token=next;if(!next){setSession(null);setProfiles([]);setLog([]);return}setSession(s);load(s)};sync();const timer=setInterval(sync,700);return()=>clearInterval(timer)},[]);
+  useEffect(()=>{let token='';const sync=()=>{const s=readSession();const next=s?.access_token||'';if(next===token)return;token=next;if(!next){setSession(null);setProfiles([]);setLog([]);return}setSession(s);load(s)};const refresh=()=>{const s=readSession();if(s?.access_token)load(s)};sync();const timer=setInterval(sync,700);window.addEventListener('compassu:institutions-updated',refresh);return()=>{clearInterval(timer);window.removeEventListener('compassu:institutions-updated',refresh)}},[]);
 
   const recipientList=useMemo(()=>form.emails.split(/[;,\n]+/).map(v=>v.trim().toLowerCase()).filter(Boolean),[form.emails]);
   function edit(profile){setForm({institution:profile.institution||'',emails:(profile.recipient_emails||[]).join(', '),deliveryDay:profile.delivery_day||5,timezone:profile.timezone||'America/Chicago',active:profile.active!==false,analytics:profile.include_institutional_analytics!==false,trends:profile.include_institutional_trends!==false,executive:profile.include_executive_insights!==false});setError('');setNotice('');}

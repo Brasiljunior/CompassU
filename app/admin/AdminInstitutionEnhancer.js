@@ -59,6 +59,7 @@ export default function AdminInstitutionEnhancer(){
           headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${session.access_token}`,'Content-Type':'application/json',Prefer:'resolution=merge-duplicates,return=minimal'},
           body:JSON.stringify(rows)
         });
+        if(response.ok)window.dispatchEvent(new CustomEvent('compassu:institutions-updated'));
         return response.ok;
       }catch(error){console.error('CompassU institution assignments could not be persisted',error);return false}
     }
