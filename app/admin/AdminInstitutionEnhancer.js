@@ -35,8 +35,32 @@ export default function AdminInstitutionEnhancer(){
         rows.forEach(row=>{if(row?.email)next[String(row.email).trim().toLowerCase()]=normalize(row.institution)});
         institutionCache=next;
         writeCache(next);
+        const savedEmails=new Set(rows.map(row=>String(row?.email||'').trim().toLowerCase()).filter(Boolean));
+        const missing=Object.entries(institutionCache)
+          .filter(([email,institution])=>email&&normalize(institution)&&!savedEmails.has(email))
+          .map(([email,institution])=>({email,institution:normalize(institution)}));
+        if(missing.length)await saveInstitutions(missing);
         return next;
       }catch{return institutionCache}
+    }
+
+    async function saveInstitutions(assignments,{allowBlank=false}={}){
+      const session=readSession();
+      if(!session?.access_token)return false;
+      const rows=[...new Map((assignments||[]).map(item=>{
+        const email=String(item?.email||'').trim().toLowerCase();
+        const institution=normalize(item?.institution);
+        return[email,{email,institution,updated_at:new Date().toISOString()}];
+      }).filter(([email,row])=>email&&(allowBlank||row.institution))).values()];
+      if(!rows.length)return true;
+      try{
+        const response=await originalFetch(`${SUPABASE_URL}/rest/v1/account_institutions?on_conflict=email`,{
+          method:'POST',
+          headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${session.access_token}`,'Content-Type':'application/json',Prefer:'resolution=merge-duplicates,return=minimal'},
+          body:JSON.stringify(rows)
+        });
+        return response.ok;
+      }catch(error){console.error('CompassU institution assignments could not be persisted',error);return false}
     }
 
     async function syncPersistentInstitutions(){
@@ -55,20 +79,11 @@ export default function AdminInstitutionEnhancer(){
       if(!email)return false;
       institutionCache={...institutionCache,[email]:institution};
       writeCache(institutionCache);
-      const session=readSession();
-      if(!session?.access_token)return false;
-      try{
-        const response=await originalFetch(`${SUPABASE_URL}/rest/v1/account_institutions`,{
-          method:'POST',
-          headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${session.access_token}`,'Content-Type':'application/json',Prefer:'resolution=merge-duplicates,return=minimal'},
-          body:JSON.stringify({email,institution,updated_at:new Date().toISOString()})
-        });
-        return response.ok;
-      }catch(error){console.error('CompassU institution assignment could not be persisted',error);return false}
+      return saveInstitutions([{email,institution}],{allowBlank:true});
     }
 
     window.fetch=async(input,init)=>{
-      let nextInit=init,action='',requestEmail='',requestInstitution='';
+      let nextInit=init,action='',requestEmail='',requestInstitution='',batchAssignments=[];
       try{
         const rawUrl=typeof input==='string'?input:input?.url;
         if(rawUrl?.includes('/functions/v1/admin-console')&&init?.body){
@@ -79,11 +94,18 @@ export default function AdminInstitutionEnhancer(){
             requestInstitution=normalize(payload.institution||batchInstitutionByEmail[requestEmail]||individualInstitution||institutionCache[requestEmail]);
             if(requestInstitution){payload.institution=requestInstitution;nextInit={...init,body:JSON.stringify(payload)}}
           }
+        }else if(rawUrl?.includes('/functions/v1/admin-batch-invite')&&init?.body){
+          const payload=JSON.parse(init.body);
+          batchAssignments=(payload?.people||[]).map(person=>{
+            const email=String(person?.email||'').trim().toLowerCase();
+            return{email,institution:normalize(person?.institution||batchInstitutionByEmail[email]||institutionCache[email])};
+          }).filter(item=>item.email&&item.institution);
         }
       }catch{}
       const response=await originalFetch(input,nextInit);
       try{
         if(action==='invite_user'&&response.ok&&requestEmail&&requestInstitution)await saveInstitution(requestEmail,requestInstitution);
+        if(batchAssignments.length&&response.ok)await saveInstitutions(batchAssignments);
         if(action==='overview'&&response.ok){
           const body=await response.clone().json();
           await loadPersistentInstitutions();
