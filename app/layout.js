@@ -1,4 +1,5 @@
 import './globals.css';
+import './brand-refresh.css';
 import MajorDescriptions from './MajorDescriptions';
 import CareerOverviewInjector from './CareerOverviewInjector';
 import AuthRedirectGuard from './AuthRedirectGuard';
