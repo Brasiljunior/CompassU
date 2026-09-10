@@ -4,3 +4,6 @@
 .monthlyRecipients button{flex:0 0 auto;border:1px solid #fecdca;border-radius:7px;background:#fff;color:#b42318;padding:5px 7px;font-size:10px;font-weight:800;cursor:pointer}
 .monthlyRecipients button:hover{background:#fef3f2}
 .monthlyRecipients button:disabled{opacity:.55;cursor:not-allowed}
+.monthlyDelete{border:1px solid #fecdca;border-radius:8px;background:#fff;color:#b42318;padding:7px 9px;font-size:10px;font-weight:800;white-space:nowrap;cursor:pointer}
+.monthlyDelete:hover{background:#fef3f2}
+.monthlyDelete:disabled{opacity:.55;cursor:not-allowed}
