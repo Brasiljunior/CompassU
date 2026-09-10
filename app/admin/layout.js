@@ -1,6 +1,7 @@
 import './admin.css';
 import './batch-guard.css';
 import './analytics.css';
+import './activity-trend.css';
 import BatchInvite500 from './BatchInvite500';
 import AdminForgotPasswordLink from './AdminForgotPasswordLink';
 import AdminSupabaseFetchGuard from './AdminSupabaseFetchGuard';
