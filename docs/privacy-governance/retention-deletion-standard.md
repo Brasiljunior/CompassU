@@ -1,10 +1,10 @@
 # CompassU Data Retention & Deletion Standard
 
-**Status:** Proposed production standard; counsel/operations approval required
+**Status:** Production-governance baseline; counsel/operations approval still recommended before contractual publication
 
-CompassU uses purpose-based retention. Retention periods below are the proposed launch baseline and must be aligned with actual backup/log configurations before final publication.
+CompassU uses purpose-based retention. The periods below are the current launch baseline and should be reviewed whenever product functionality, law, contracts, backup architecture, or subprocessors materially change.
 
-| Data class | Proposed active retention | Disposition |
+| Data class | Active retention baseline | Disposition |
 |---|---:|---|
 | Active student account/profile | Duration of active account/institutional service | Delete/de-identify after validated termination/deletion workflow |
 | Assessment responses/attempts and derived recommendations | Duration of active account plus up to 12 months after account/institution termination unless institution requires shorter period | Delete or irreversibly de-identify |
@@ -15,7 +15,15 @@ CompassU uses purpose-based retention. Retention periods below are the proposed 
 | Administrative/security audit logs | Up to 24 months, or longer when reasonably necessary for security/legal investigation | Preserve necessary event history while removing direct user references on account deletion; securely delete after retention period |
 | Security incident/legal-hold records | Duration of investigation/hold plus legally appropriate closure period | Controlled deletion after release |
 | Aggregate/de-identified analytics | May be retained longer if reasonably de-identified and not reasonably linkable to an individual | Periodic re-identification-risk review |
-| Backups | According to production backup lifecycle | Expire automatically; no restoration solely to recover deleted user data |
+| Supabase production database backups | Supabase Pro currently provides daily backups with access to the last 7 days unless an additional backup/PITR configuration changes that lifecycle | Allow provider-managed backup copies to age out through the normal backup lifecycle; do not restore solely to recover deleted user data |
+
+## Verified production backup baseline
+
+As of September 11, 2026, the CompassU production Supabase project is active in region `us-east-1` on the Pro plan. Supabase's current published backup documentation states that Pro projects receive automatic daily database backups and can access the last seven days of daily backups. Point-in-Time Recovery (PITR) is a separate add-on that can extend/fine-tune recovery capability and retention.
+
+The available CompassU administrative connector confirms the production project and region but does not expose whether PITR is enabled. Accordingly, CompassU must not promise a shorter or more specific backup-erasure period than the provider's actual configured lifecycle. If PITR is enabled later, this standard must be updated to match the configured recovery window.
+
+A deletion from the active production database is not represented as immediate physical erasure from every existing provider backup copy. Instead, deleted data is removed from active use and any residual backup copies remain protected, are not used for ordinary processing, and age out under the provider's normal backup lifecycle. If disaster recovery restores a backup that predates a validated deletion, CompassU must re-apply the deletion/de-identification instruction where feasible before returning the affected data to ordinary production use.
 
 ## Deletion workflow
 
@@ -25,7 +33,7 @@ CompassU uses purpose-based retention. Retention periods below are the proposed 
 4. Authorized CompassU Master Administrator executes the approved deletion/de-identification action.
 5. Execution is recorded where appropriate without retaining unnecessary deleted content in the audit record.
 6. Downstream systems/service providers are addressed where required and technically supported.
-7. Backups containing historical copies remain protected and age out through the normal backup lifecycle; deleted data must not be intentionally restored into active use except when required for disaster recovery, in which case the deletion instruction must be re-applied where feasible.
+7. Backup copies are handled according to the verified production-backup rule above.
 
 ## Verified account deletion behavior
 
