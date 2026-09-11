@@ -5,8 +5,11 @@ import CareerOverviewInjector from './CareerOverviewInjector';
 import AuthRedirectGuard from './AuthRedirectGuard';
 
 export const metadata = {
+  metadataBase: new URL('https://getcompassu.com'),
   title: 'CompassU | Discover Your Direction',
   description: 'Personalized college major, career, salary and college discovery.',
+  icons: {icon:'/compassu-logo.svg',shortcut:'/compassu-logo.svg',apple:'/compassu-logo.svg'},
+  openGraph: {title:'CompassU | Discover Your Direction',description:'Personalized college major, career, salary and college discovery.',images:['/compassu-logo.svg']},
 };
 
 export default function RootLayout({ children }) {
