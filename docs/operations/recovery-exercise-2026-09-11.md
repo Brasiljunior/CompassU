@@ -1,38 +1,25 @@
 # CompassU Recovery Exercise — 2026-09-11
 
 **Item:** Launch Readiness #6 — Monitoring, Incident Response & Recovery Testing  
-**Environment:** Isolated Supabase development branch  
+**Environment:** Isolated Supabase development branches  
 **Production impact:** None  
-**Result:** FAILED — migration replay/configuration drift identified
+**Current result:** PARTIAL PASS — clean migration replay and table reconstruction now succeed; database-function drift remains
 
 ## Objective
 
 Verify that CompassU production can be reconstructed in an isolated Supabase environment without modifying or risking production data.
 
-## Test setup
+## Initial failure
 
-A temporary Supabase development branch named `recovery-test-item6` was created from the production CompassU project after explicit approval of the temporary branch charge. The branch was created without production data.
+The first isolated recovery branch reached an `ACTIVE_HEALTHY` provider state but entered `MIGRATIONS_FAILED`. The replay stopped before the privacy-safe deletion migration because a diagnostic privilege migration was not safe when optional diagnostic functions were absent. Production also contained tenant, institution-membership, reporting and invitation tables not represented in the replayable migration chain.
 
-## Observed result
+## Remediation completed
 
-The preview project itself reached an `ACTIVE_HEALTHY` provider state, but the branch migration status became `MIGRATIONS_FAILED`.
+The diagnostic privilege migration was made replay-safe. The privacy-safe deletion migration was made tolerant of clean environments. A recovery schema baseline was added for production-only tenant/admin/reporting tables, constraints, indexes, RLS and grants. The baseline was corrected to create the authorization helper functions required by its RLS policies before policy creation.
 
-Production migration history includes:
+A fresh isolated branch named `recovery-test-item6-final` then completed the full migration chain and reached `FUNCTIONS_DEPLOYED` / `ACTIVE_HEALTHY`.
 
-- `20260911191531 restrict_stage3a_diagnostic_rpcs`
-- `20260911224447 privacy_safe_auth_user_deletion`
-
-The recovery branch successfully replayed migrations only through:
-
-- `20260911191505 restrict_server_only_admin_tables`
-
-The two later migrations were not applied.
-
-## Root-cause evidence
-
-The recorded `restrict_stage3a_diagnostic_rpcs` migration contains direct `REVOKE EXECUTE` statements against two diagnostic functions. Those functions are not present in the clean recovery schema, so this migration is not safe to replay in that environment.
-
-A production-versus-recovery table comparison also identified production tables absent from the reconstructed branch:
+The reconstructed branch now contains the same 29 public tables as production, including:
 
 - `account_institutions`
 - `admin_role_invitations`
@@ -43,28 +30,39 @@ A production-versus-recovery table comparison also identified production tables 
 - `organizations`
 - `tenant_institutions`
 
-Review of recorded migration statements did not find creation of the membership/admin-role schema objects in the replayable migration history. This indicates production schema drift from the migration chain.
+All reconstructed public tables have RLS enabled. A transactional create/rollback smoke test on `organizations` succeeded. Privacy-related FK behavior was verified in the reconstructed branch: user-owned membership relationships use `ON DELETE CASCADE`, while creator/audit references that must preserve historical records use `ON DELETE SET NULL`.
 
-## Impact assessment
+The recovery helper functions introduced by the baseline were initially executable by `anon` due to PostgreSQL default function privileges. This was corrected in production with a follow-up migration that revokes execution from `public`/`anon` and grants intended execution only to `authenticated`/`service_role`. The recovery branch was rebased and the anonymous SECURITY DEFINER advisor warnings were eliminated.
 
-This finding does **not** indicate an active production outage or data-loss event. Production remains operational. It does mean that a clean migration-based reconstruction cannot currently be treated as a verified disaster-recovery path.
+## Remaining schema drift
 
-Therefore Item #6 cannot be marked complete until the schema/migration drift is reconciled and the clean reconstruction test passes.
+A broader production-versus-recovery function inventory found that production currently contains **41 public database functions**, while the clean recovery branch contains **9**. This means a substantial set of production functions was created outside the replayable migration history and remains a disaster-recovery gap even though table reconstruction now succeeds.
 
-## Required remediation
+Missing functions include administrator 50K paging/dashboard RPCs, tenant-role invitation and membership RPCs, institutional analytics/trend/comparison functions, monthly reporting service functions and Stage 3 diagnostic functions.
 
-1. Inventory production-only schema objects, functions, policies, indexes and grants that are missing from replayable migrations.
-2. Reconcile those objects into idempotent, source-controlled migration logic.
-3. Make optional diagnostic privilege changes safe when their target functions are absent.
-4. Ensure the privacy-safe deletion migration runs only after all referenced tables/constraints exist.
-5. Create a fresh isolated Supabase recovery branch and verify all production migrations complete successfully.
-6. Compare reconstructed schema against production.
-7. Run functional recovery smoke tests for authentication, assessment save/finalize, results, email path, administrator/MFA workflows, institution scoping/reporting, and deletion/de-identification controls.
+This is not an active production outage. Production remains healthy. It is a recoverability/configuration-drift issue that must be reconciled before Item #6 is fully closed.
+
+## Security verification
+
+The fresh recovery environment now shows the same five informational `RLS Enabled No Policy` findings expected for server-managed administrative tables. No anonymous SECURITY DEFINER execution warning remains after the follow-up privilege migration. Production likewise has no anonymous SECURITY DEFINER warning. The authenticated SECURITY DEFINER findings remain the previously reviewed, intentional RPC surface and require continued caller authorization controls.
+
+Supabase remediation references:
+
+- RLS informational finding: https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy
+- SECURITY DEFINER execution finding: https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable
+
+## Remaining remediation before Item #6 can close
+
+1. Baseline all production-only public functions and their execution grants into replayable/source-controlled migrations.
+2. Rebuild a fresh isolated branch again and verify function parity with production.
+3. Compare remaining schema objects such as triggers/views and critical indexes/grants.
+4. Run application smoke tests against the reconstructed environment for authentication, assessment save/finalize, results, email, administrator workflows, institution reporting and deletion/de-identification.
+5. Record measured recovery time and finalize RTO/RPO recommendations.
 
 ## Cost control
 
-The temporary recovery branch should be deleted after evidence collection so the hourly test charge does not continue unnecessarily.
+Temporary Supabase recovery branches are deleted after evidence collection so hourly branch charges do not continue unnecessarily.
 
 ## Tracking
 
-GitHub Issue #5 tracks remediation of this recovery blocker.
+GitHub Issue #5 tracks the remaining recovery-parity work.
