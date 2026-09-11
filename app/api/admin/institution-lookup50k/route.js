@@ -22,24 +22,31 @@ async function authorize(request){
   return {me};
 }
 
+const sanitizeFilterValue=v=>String(v||'').replace(/[(),]/g,'').trim();
+
 export async function POST(request){
   try{
     const auth=await authorize(request);if(auth.error)return auth.error;
     const body=await request.json().catch(()=>({}));
     const emails=[...new Set((Array.isArray(body.emails)?body.emails:[]).map(v=>String(v||'').trim().toLowerCase()).filter(Boolean))].slice(0,100);
     if(!emails.length)return NextResponse.json({institutions:{}});
-    const quoted=emails.map(v=>`"${v.replaceAll('"','')}"`).join(',');
-    const url=new URL(`${SUPABASE_URL}/rest/v1/account_institutions`);
-    url.searchParams.set('select','email,institution');
-    url.searchParams.set('email',`in.(${quoted})`);
-    const r=await fetch(url,{headers:serviceHeaders(),cache:'no-store'});
-    const rows=await readJson(r);
-    if(!r.ok)throw new Error(rows?.message||rows?.error||'Unable to load institution associations.');
+
+    // Query only the visible-page emails, in bounded groups. Using an OR filter avoids
+    // relying on quoted PostgREST `in.(...)` parsing for addresses that contain `+`.
     const institutions={};
-    for(const row of Array.isArray(rows)?rows:[]){
-      const email=String(row?.email||'').trim().toLowerCase();
-      const institution=String(row?.institution||'').trim();
-      if(email&&institution)institutions[email]=institution;
+    for(let i=0;i<emails.length;i+=20){
+      const chunk=emails.slice(i,i+20);
+      const url=new URL(`${SUPABASE_URL}/rest/v1/account_institutions`);
+      url.searchParams.set('select','email,institution');
+      url.searchParams.set('or',`(${chunk.map(v=>`email.ilike.${sanitizeFilterValue(v)}`).join(',')})`);
+      const r=await fetch(url,{headers:serviceHeaders(),cache:'no-store'});
+      const rows=await readJson(r);
+      if(!r.ok)throw new Error(rows?.message||rows?.error||'Unable to load institution associations.');
+      for(const row of Array.isArray(rows)?rows:[]){
+        const email=String(row?.email||'').trim().toLowerCase();
+        const institution=String(row?.institution||'').trim();
+        if(email&&institution)institutions[email]=institution;
+      }
     }
     return NextResponse.json({institutions});
   }catch(error){return NextResponse.json({error:error?.message||'Unable to load institution associations.'},{status:500})}
