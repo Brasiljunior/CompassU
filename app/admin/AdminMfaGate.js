@@ -3,9 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-// Public Supabase browser credentials. Preview deployments may not inherit
-// production-scoped Vercel variables, so use the same safe publishable fallback
-// already used by CompassU's existing browser authentication flows.
 const url=process.env.NEXT_PUBLIC_SUPABASE_URL||'https://xvvgalifibyqwebasalx.supabase.co';
 const key=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY||'sb_publishable_lWtjaYYRk4hd1Bb-yKG3eA_CxF4CW9-';
 const readStored=()=>{try{return JSON.parse(localStorage.getItem('compassu_session')||'null')}catch{return null}};
@@ -56,10 +53,23 @@ export default function AdminMfaGate({children}){
     };
     sync();
     const timer=setInterval(sync,400);
-    return()=>clearInterval(timer);
+    const onAdminLogout=event=>{
+      const button=event.target?.closest?.('button');
+      if(String(button?.textContent||'').trim().toLowerCase()!=='log out')return;
+      try{clientRef.current?.auth?.signOut({scope:'local'})}catch{}
+      localStorage.removeItem('compassu_session');
+      last='';
+      setSession(null);setStatus('signed_out');
+    };
+    document.addEventListener('click',onAdminLogout,true);
+    return()=>{clearInterval(timer);document.removeEventListener('click',onAdminLogout,true)};
   },[]);
 
-  const signOut=()=>{localStorage.removeItem('compassu_session');window.location.href='/admin'};
+  const signOut=async()=>{
+    try{await clientRef.current?.auth?.signOut({scope:'local'})}catch{}
+    localStorage.removeItem('compassu_session');
+    window.location.href='/admin';
+  };
 
   const verify=async()=>{
     if(!factor?.id||!code.trim())return;
