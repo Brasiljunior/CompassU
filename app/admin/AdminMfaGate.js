@@ -24,13 +24,17 @@ export default function AdminMfaGate({children}){
 
   useEffect(()=>{
     clientRef.current=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
-    let last='';
+    let last=null;
     const sync=async()=>{
       const stored=readStored();
-      const token=stored?.access_token||'';
+      if(!stored?.access_token||!stored?.refresh_token){
+        last='';
+        setSession(null);setStatus('signed_out');setFactor(null);setChallengeId('');setQr('');setSecret('');
+        return;
+      }
+      const token=stored.access_token;
       if(token===last)return;
       last=token;
-      if(!stored?.access_token||!stored?.refresh_token){setSession(null);setStatus('signed_out');setFactor(null);setChallengeId('');setQr('');setSecret('');return}
       setStatus('checking');setError('');setSession(stored);
       try{
         const {error:setErr}=await clientRef.current.auth.setSession({access_token:stored.access_token,refresh_token:stored.refresh_token});
