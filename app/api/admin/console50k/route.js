@@ -11,6 +11,7 @@ const REPORT_FROM=process.env.COMPASSU_FROM_EMAIL||'CompassU <results@getcompass
 const APP_URL=(process.env.COMPASSU_APP_URL||'https://getcompassu.com').replace(/\/$/,'');
 
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]||c));
+const csv=v=>`"${String(v??'').replaceAll('"','""')}"`;
 const serviceHeaders=()=>({apikey:SERVICE_ROLE_KEY,Authorization:`Bearer ${SERVICE_ROLE_KEY}`,'Content-Type':'application/json'});
 
 async function readJson(response){try{return await response.json()}catch{return null}}
@@ -25,20 +26,24 @@ async function audit(adminId,action,target=null,details={}){
 }
 async function identity(id){return rpc('admin_account_identity_50k',{p_user_id:id})}
 
+async function authorize(request){
+  if(!SERVICE_ROLE_KEY)return {error:NextResponse.json({error:'SUPABASE_SERVICE_ROLE_KEY is not configured.'},{status:500})};
+  const authorization=request.headers.get('authorization');
+  if(!authorization)return {error:NextResponse.json({error:'Missing authorization'},{status:401})};
+  const ur=await fetch(`${SUPABASE_URL}/auth/v1/user`,{headers:{apikey:SUPABASE_PUBLIC_KEY,Authorization:authorization},cache:'no-store'});
+  if(!ur.ok)return {error:NextResponse.json({error:'Invalid user session'},{status:401})};
+  const me=await ur.json();
+  const ar=await fetch(`${SUPABASE_URL}/rest/v1/admin_users?user_id=eq.${me.id}&select=user_id,role&limit=1`,{headers:serviceHeaders(),cache:'no-store'});
+  const admins=await readJson(ar);
+  if(!ar.ok||!admins?.length)return {error:NextResponse.json({error:'Administrator access is not enabled for this account.'},{status:403})};
+  return {authorization,me,admin:admins[0]};
+}
+
 export async function POST(request){
-  if(!SERVICE_ROLE_KEY)return NextResponse.json({error:'SUPABASE_SERVICE_ROLE_KEY is not configured.'},{status:500});
   try{
-    const authorization=request.headers.get('authorization');
-    if(!authorization)return NextResponse.json({error:'Missing authorization'},{status:401});
-
-    const ur=await fetch(`${SUPABASE_URL}/auth/v1/user`,{headers:{apikey:SUPABASE_PUBLIC_KEY,Authorization:authorization},cache:'no-store'});
-    if(!ur.ok)return NextResponse.json({error:'Invalid user session'},{status:401});
-    const me=await ur.json();
-
-    const ar=await fetch(`${SUPABASE_URL}/rest/v1/admin_users?user_id=eq.${me.id}&select=user_id,role&limit=1`,{headers:serviceHeaders(),cache:'no-store'});
-    const admins=await readJson(ar);
-    if(!ar.ok||!admins?.length)return NextResponse.json({error:'Administrator access is not enabled for this account.'},{status:403});
-
+    const auth=await authorize(request);
+    if(auth.error)return auth.error;
+    const {me,admin}=auth;
     const body=await request.json().catch(()=>({}));
     const action=body.action||'overview';
 
@@ -51,7 +56,7 @@ export async function POST(request){
         rpc('admin_dashboard_overview_50k'),
         rpc('admin_account_page_50k',{p_page:page,p_page_size:pageSize,p_search:search,p_institution:institution})
       ]);
-      return NextResponse.json({admin:{role:admins[0].role},stats:overview?.stats||{},trend:overview?.trend||[],users:accounts?.users||[],pagination:accounts?.pagination||{page,page_size:pageSize,total:0,total_pages:1,has_previous:false,has_next:false}});
+      return NextResponse.json({admin:{role:admin.role},stats:overview?.stats||{},trend:overview?.trend||[],users:accounts?.users||[],pagination:accounts?.pagination||{page,page_size:pageSize,total:0,total_pages:1,has_previous:false,has_next:false}});
     }
 
     if(action==='account_page'){
@@ -60,6 +65,29 @@ export async function POST(request){
       const search=String(body.search||'').trim()||null;
       const institution=String(body.institution||'').trim()||null;
       return NextResponse.json(await rpc('admin_account_page_50k',{p_page:page,p_page_size:pageSize,p_search:search,p_institution:institution}));
+    }
+
+    if(action==='institution_list'){
+      return NextResponse.json({institutions:await rpc('admin_institution_list_50k')});
+    }
+
+    if(action==='export_accounts'){
+      const search=String(body.search||'').trim()||null;
+      const institution=String(body.institution||'').trim()||null;
+      const lines=[['Name','Email','Institution','State','Created','Last Sign In','Completed Surveys','Last Completed','Status'].map(csv).join(',')];
+      let page=1,totalPages=1,total=0;
+      do{
+        const batch=await rpc('admin_account_export_page_50k',{p_page:page,p_page_size:1000,p_search:search,p_institution:institution});
+        totalPages=Number(batch?.pagination?.total_pages||1);
+        total=Number(batch?.pagination?.total||0);
+        for(const u of batch?.users||[]){
+          lines.push([[u.first_name,u.last_name].filter(Boolean).join(' '),u.email,u.institution,u.state,u.created_at,u.last_sign_in_at,u.completed_surveys,u.last_completed_at,u.is_suspended?'Suspended':'Active'].map(csv).join(','));
+        }
+        page+=1;
+        if(page>100)throw new Error('Export safety limit exceeded.');
+      }while(page<=totalPages);
+      await audit(me.id,'export_accounts',null,{total,search:search||'',institution:institution||''});
+      return new NextResponse(lines.join('\n'),{status:200,headers:{'Content-Type':'text/csv; charset=utf-8','Content-Disposition':'attachment; filename="CompassU-Admin-Accounts.csv"','Cache-Control':'no-store'}});
     }
 
     if(action==='invite_user'){
