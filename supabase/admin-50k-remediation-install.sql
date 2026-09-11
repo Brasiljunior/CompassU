@@ -1,6 +1,7 @@
 -- CompassU 50K Administrator Remediation - consolidated installer
 -- Safe additive database services for server-only administrator workflows.
 -- Target: 50,000+ accounts with bounded browser/server responses.
+-- Note: Supabase owns auth.users, so this installer intentionally does not create indexes on auth schema tables.
 
 begin;
 
@@ -11,7 +12,6 @@ create index if not exists assessment_attempts_completed_at_idx on public.assess
 create index if not exists assessment_attempts_started_at_idx on public.assessment_attempts (started_at) where started_at is not null;
 create index if not exists profiles_name_idx on public.profiles (lower(coalesce(first_name,'')),lower(coalesce(last_name,'')));
 create index if not exists account_institutions_institution_idx on public.account_institutions (lower(coalesce(institution,'')));
-create index if not exists auth_users_email_trgm_50k_idx on auth.users using gin (lower(coalesce(email,'')) extensions.gin_trgm_ops);
 create index if not exists profiles_first_name_trgm_50k_idx on public.profiles using gin (lower(coalesce(first_name,'')) extensions.gin_trgm_ops);
 create index if not exists profiles_last_name_trgm_50k_idx on public.profiles using gin (lower(coalesce(last_name,'')) extensions.gin_trgm_ops);
 create index if not exists profiles_state_trgm_50k_idx on public.profiles using gin (lower(coalesce(state,'')) extensions.gin_trgm_ops);
