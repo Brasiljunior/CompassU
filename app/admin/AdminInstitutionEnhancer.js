@@ -63,9 +63,11 @@ export default function AdminInstitutionEnhancer(){
 
     window.fetch=async(input,init)=>{
       let nextInit=init,action='',requestEmail='',requestInstitution='',batchAssignments=[];
+      let rawUrl='';
       try{
-        const rawUrl=typeof input==='string'?input:input?.url;
-        if(rawUrl?.includes('/functions/v1/admin-console')&&init?.body){
+        rawUrl=typeof input==='string'?input:input?.url;
+        const isAdminConsole=rawUrl?.includes('/functions/v1/admin-console')||rawUrl?.includes('/api/admin/console50k');
+        if(isAdminConsole&&init?.body){
           const payload=JSON.parse(init.body);action=payload?.action||'';requestEmail=String(payload?.email||'').trim().toLowerCase();
           if(action==='invite_user'){requestInstitution=normalize(payload.institution||batchInstitutionByEmail[requestEmail]||individualInstitution||institutionCache[requestEmail]);if(requestInstitution){payload.institution=requestInstitution;nextInit={...init,body:JSON.stringify(payload)}}}
         }else if(rawUrl?.includes('/functions/v1/admin-batch-invite')&&init?.body){
@@ -76,7 +78,13 @@ export default function AdminInstitutionEnhancer(){
       try{
         if(action==='invite_user'&&response.ok&&requestEmail&&requestInstitution)await saveInstitution(requestEmail,requestInstitution);
         if(batchAssignments.length&&response.ok)await saveInstitutions(batchAssignments);
-        if(action==='overview'&&response.ok){const body=await response.clone().json();overviewUsers=Array.isArray(body?.users)?body.users:[];scheduleEnhance()}
+        const isAdminConsole=rawUrl?.includes('/functions/v1/admin-console')||rawUrl?.includes('/api/admin/console50k');
+        if(isAdminConsole&&response.ok&&(action==='overview'||action==='refresh'||!action)){
+          const body=await response.clone().json();
+          overviewUsers=(Array.isArray(body?.users)?body.users:[]).map(user=>{const email=String(user?.email||'').trim().toLowerCase();const institution=normalize(user?.institution||institutionCache[email]);if(email&&institution)institutionCache[email]=institution;return{...user,institution}});
+          writeCache(institutionCache);
+          scheduleEnhance();
+        }
       }catch{}
       return response;
     };
@@ -87,13 +95,26 @@ export default function AdminInstitutionEnhancer(){
 
     function getEmailForRow(row){const match=String(row?.textContent||'').match(emailRegex);return String(match?.[0]||'').trim().toLowerCase()}
     function closeEditModal(){document.getElementById('compassu-account-edit-modal')?.remove()}
-    function openEditModal(row){closeEditModal();const email=getEmailForRow(row);if(!email)return;const user=overviewUsers.find(u=>String(u.email||'').toLowerCase()===email)||{};const displayName=[user.first_name,user.last_name].filter(Boolean).join(' ')||'Account';const currentInstitution=normalize(user.institution||institutionCache[email]);const backdrop=document.createElement('div');backdrop.id='compassu-account-edit-modal';backdrop.className='adminModalBackdrop';const modal=document.createElement('div');modal.className='adminModal';modal.innerHTML=`<div class="adminPanelHead"><div><div class="adminKicker">EDIT ACCOUNT INFORMATION</div><h2>${htmlEscape(displayName)}</h2><p>${htmlEscape(email)}</p></div><button class="btn ghost" type="button" data-edit-close>Close</button></div><div class="detailSection"><label for="compassu-edit-institution">Institution</label><input id="compassu-edit-institution" placeholder="High school, college, or university" value="${htmlEscape(currentInstitution)}"></div><div class="detailActions"><button class="btn primary" type="button" data-edit-save>Save Changes</button><button class="btn ghost" type="button" data-edit-cancel>Cancel</button></div><div data-edit-status></div>`;backdrop.appendChild(modal);document.body.appendChild(backdrop);backdrop.addEventListener('click',e=>{if(e.target===backdrop)closeEditModal()});modal.querySelector('[data-edit-close]').addEventListener('click',closeEditModal);modal.querySelector('[data-edit-cancel]').addEventListener('click',closeEditModal);modal.querySelector('[data-edit-save]').addEventListener('click',async()=>{const saveButton=modal.querySelector('[data-edit-save]'),status=modal.querySelector('[data-edit-status]'),institution=normalize(modal.querySelector('#compassu-edit-institution').value);saveButton.disabled=true;saveButton.textContent='Saving…';status.textContent='';const ok=await saveInstitution(email,institution);if(!ok){saveButton.disabled=false;saveButton.textContent='Save Changes';status.className='error adminNotice';status.textContent='Unable to save the account update. Please try again.';return}overviewUsers=overviewUsers.map(u=>String(u.email||'').toLowerCase()===email?{...u,institution}:u);window.dispatchEvent(new CustomEvent('compassu:institutions-updated'));closeEditModal()})}
+    function openEditModal(row){closeEditModal();const email=getEmailForRow(row);if(!email)return;const user=overviewUsers.find(u=>String(u.email||'').toLowerCase()===email)||{};const displayName=[user.first_name,user.last_name].filter(Boolean).join(' ')||'Account';const currentInstitution=normalize(user.institution||institutionCache[email]);const backdrop=document.createElement('div');backdrop.id='compassu-account-edit-modal';backdrop.className='adminModalBackdrop';const modal=document.createElement('div');modal.className='adminModal';modal.innerHTML=`<div class="adminPanelHead"><div><div class="adminKicker">EDIT ACCOUNT INFORMATION</div><h2>${htmlEscape(displayName)}</h2><p>${htmlEscape(email)}</p></div><button class="btn ghost" type="button" data-edit-close>Close</button></div><div class="detailSection"><label for="compassu-edit-institution">Institution</label><input id="compassu-edit-institution" placeholder="High school, college, or university" value="${htmlEscape(currentInstitution)}"></div><div class="detailActions"><button class="btn primary" type="button" data-edit-save>Save Changes</button><button class="btn ghost" type="button" data-edit-cancel>Cancel</button></div><div data-edit-status></div>`;backdrop.appendChild(modal);document.body.appendChild(backdrop);backdrop.addEventListener('click',e=>{if(e.target===backdrop)closeEditModal()});modal.querySelector('[data-edit-close]').addEventListener('click',closeEditModal);modal.querySelector('[data-edit-cancel]').addEventListener('click',closeEditModal);modal.querySelector('[data-edit-save]').addEventListener('click',async()=>{const saveButton=modal.querySelector('[data-edit-save]'),status=modal.querySelector('[data-edit-status]'),institution=normalize(modal.querySelector('#compassu-edit-institution').value);saveButton.disabled=true;saveButton.textContent='Saving…';status.textContent='';const ok=await saveInstitution(email,institution);if(!ok){saveButton.disabled=false;saveButton.textContent='Save Changes';status.className='error adminNotice';status.textContent='Unable to save the account update. Please try again.';return}overviewUsers=overviewUsers.map(u=>String(u.email||'').toLowerCase()===email?{...u,institution}:u);window.dispatchEvent(new CustomEvent('compassu:institutions-updated'));scheduleEnhance();closeEditModal()})}
 
-    // In the 50K architecture, institution names and filter options are owned by the
-    // server-backed 50K components. This legacy enhancer may add the structural column
-    // and Edit button, but must never overwrite server-rendered institution values or
-    // rebuild the institution dropdown.
-    function enhanceTable(){const table=document.querySelector('.adminTable');if(!table)return false;let changed=false;const headerRow=table.querySelector('thead tr'),firstHeader=headerRow?.querySelector('th');if(firstHeader&&!headerRow.querySelector('[data-compassu-institution-head]')){const th=document.createElement('th');th.textContent='Institution';th.dataset.compassuInstitutionHead='1';firstHeader.insertAdjacentElement('afterend',th);changed=true}table.querySelectorAll('tbody tr').forEach(row=>{const firstCell=row.querySelector('td');let td=row.querySelector('[data-compassu-institution-cell]');if(firstCell&&!td){td=document.createElement('td');td.dataset.compassuInstitutionCell='1';firstCell.insertAdjacentElement('afterend',td);changed=true}const actions=row.querySelector('.adminRowActions');if(actions&&!actions.querySelector('[data-compassu-edit-account]')){const edit=document.createElement('button');edit.type='button';edit.textContent='Edit';edit.dataset.compassuEditAccount='1';edit.addEventListener('click',()=>openEditModal(row));actions.insertAdjacentElement('afterbegin',edit);changed=true}});return changed}
+    function enhanceTable(){
+      const table=document.querySelector('.adminTable');if(!table)return false;
+      let changed=false;
+      const headerRow=table.querySelector('thead tr'),firstHeader=headerRow?.querySelector('th');
+      if(firstHeader&&!headerRow.querySelector('[data-compassu-institution-head]')){const th=document.createElement('th');th.textContent='Institution';th.dataset.compassuInstitutionHead='1';firstHeader.insertAdjacentElement('afterend',th);changed=true}
+      const userByEmail=new Map(overviewUsers.map(user=>[String(user?.email||'').trim().toLowerCase(),normalize(user?.institution)]));
+      table.querySelectorAll('tbody tr').forEach(row=>{
+        const firstCell=row.querySelector('td');
+        let td=row.querySelector('[data-compassu-institution-cell]');
+        if(firstCell&&!td){td=document.createElement('td');td.dataset.compassuInstitutionCell='1';firstCell.insertAdjacentElement('afterend',td);changed=true}
+        const email=getEmailForRow(row);
+        const institution=normalize(userByEmail.get(email)||institutionCache[email]);
+        if(td&&td.textContent!==(institution||'—')){td.textContent=institution||'—';changed=true}
+        const actions=row.querySelector('.adminRowActions');
+        if(actions&&!actions.querySelector('[data-compassu-edit-account]')){const edit=document.createElement('button');edit.type='button';edit.textContent='Edit';edit.dataset.compassuEditAccount='1';edit.addEventListener('click',()=>openEditModal(row));actions.insertAdjacentElement('afterbegin',edit);changed=true}
+      });
+      return changed;
+    }
 
     function enhanceDashboard(){enhanceInvitePanel();enhanceTable()}
     function scheduleEnhance(){if(scheduled)return;scheduled=true;requestAnimationFrame(()=>{scheduled=false;enhanceDashboard()})}
