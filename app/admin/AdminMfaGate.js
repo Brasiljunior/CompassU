@@ -3,8 +3,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-const url=process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+// Public Supabase browser credentials. Preview deployments may not inherit
+// production-scoped Vercel variables, so use the same safe publishable fallback
+// already used by CompassU's existing browser authentication flows.
+const url=process.env.NEXT_PUBLIC_SUPABASE_URL||'https://xvvgalifibyqwebasalx.supabase.co';
+const key=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY||'sb_publishable_lWtjaYYRk4hd1Bb-yKG3eA_CxF4CW9-';
 const readStored=()=>{try{return JSON.parse(localStorage.getItem('compassu_session')||'null')}catch{return null}};
 
 export default function AdminMfaGate({children}){
@@ -20,7 +23,6 @@ export default function AdminMfaGate({children}){
   const [busy,setBusy]=useState(false);
 
   useEffect(()=>{
-    if(!url||!key){setStatus('error');setError('CompassU authentication configuration is unavailable.');return}
     clientRef.current=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
     let last='';
     const sync=async()=>{
@@ -53,6 +55,8 @@ export default function AdminMfaGate({children}){
     return()=>clearInterval(timer);
   },[]);
 
+  const signOut=()=>{localStorage.removeItem('compassu_session');window.location.href='/admin'};
+
   const verify=async()=>{
     if(!factor?.id||!code.trim())return;
     setBusy(true);setError('');
@@ -79,7 +83,7 @@ export default function AdminMfaGate({children}){
   if(status==='signed_out')return children;
   if(status==='verified')return children;
   if(status==='checking')return <MfaShell><p>Checking administrator security…</p></MfaShell>;
-  if(status==='error')return <MfaShell><h1>Administrator Security</h1><p>{error}</p><button onClick={()=>{localStorage.removeItem('compassu_session');window.location.reload()}}>Return to sign in</button></MfaShell>;
+  if(status==='error')return <MfaShell><h1>Administrator Security</h1><p>{error}</p><button className="btn primary" onClick={signOut}>Return to sign in</button></MfaShell>;
 
   return <MfaShell>
     <div className="adminKicker">ADMINISTRATOR SECURITY</div>
@@ -91,7 +95,7 @@ export default function AdminMfaGate({children}){
     <input inputMode="numeric" autoComplete="one-time-code" value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,'').slice(0,6))} onKeyDown={e=>e.key==='Enter'&&verify()} placeholder="123456" style={{width:'100%',marginTop:8}}/>
     {error&&<div className="error" style={{marginTop:12}}>{error}</div>}
     <button className="btn primary wide" disabled={busy||code.length<6} onClick={verify} style={{marginTop:14}}>{busy?'Verifying…':'Verify and continue'}</button>
-    <button className="btn ghost wide" onClick={()=>{localStorage.removeItem('compassu_session');window.location.reload()}} style={{marginTop:8}}>Cancel and sign out</button>
+    <button className="btn ghost wide" onClick={signOut} style={{marginTop:8}}>Cancel and sign out</button>
   </MfaShell>;
 }
 
