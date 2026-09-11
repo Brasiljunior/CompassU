@@ -11,7 +11,7 @@ const esc=v=>String(v||'').replaceAll('&','&amp;').replaceAll('"','&quot;').repl
 
 export default function Admin50kAccountTableController(){
   useEffect(()=>{
-    let observer,timer=null,busy=false,lastEmails='',institutions=[];
+    let observer,timer=null,busy=false,lastSignature='',institutions=[];
 
     const refreshDashboard=()=>{
       const button=[...document.querySelectorAll('button')].find(b=>b.textContent?.includes('Refresh Dashboard'));
@@ -19,16 +19,16 @@ export default function Admin50kAccountTableController(){
       window.dispatchEvent(new CustomEvent('compassu-admin-50k-refresh'));
     };
 
-    const call=async(path,payload)=>{
+    const call=async(payload)=>{
       const session=readSession();
       if(!session?.access_token)throw new Error('Administrator login required.');
-      const r=await fetch(path,{method:'POST',headers:{Authorization:`Bearer ${session.access_token}`,'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      const r=await fetch('/api/admin/console50k',{method:'POST',headers:{Authorization:`Bearer ${session.access_token}`,'Content-Type':'application/json'},body:JSON.stringify(payload)});
       const b=await r.json().catch(()=>({}));
       if(!r.ok)throw new Error(b?.error||'Administrator request failed.');
       return b;
     };
 
-    const ensureCell=()=>{
+    const ensureCells=()=>{
       const table=document.querySelector('.adminTable');if(!table)return [];
       const head=table.querySelector('thead tr');
       if(head&&!head.querySelector('[data-compassu-institution-head]')){
@@ -48,7 +48,7 @@ export default function Admin50kAccountTableController(){
       let select=document.getElementById('compassu-institution-filter');
       if(!select){
         select=document.createElement('select');select.id='compassu-institution-filter';select.className='adminSearch';select.setAttribute('aria-label','Filter accounts by institution');select.style.minWidth='210px';actions.insertAdjacentElement('afterbegin',select);
-        select.addEventListener('change',()=>{const next={...readState(),page:1,institution:String(select.value||'')};writeState(next);lastEmails='';refreshDashboard()});
+        select.addEventListener('change',()=>{const next={...readState(),page:1,institution:String(select.value||'')};writeState(next);lastSignature='';refreshDashboard()});
       }
       const state=readState();
       const markup='<option value="">All institutions</option>'+institutions.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
@@ -58,7 +58,7 @@ export default function Admin50kAccountTableController(){
 
     const loadInstitutions=async()=>{
       try{
-        const b=await call('/api/admin/console50k',{action:'institution_list'});
+        const b=await call({action:'institution_list'});
         const next=Array.isArray(b?.institutions)?b.institutions.filter(Boolean):[];
         if(JSON.stringify(next)!==JSON.stringify(institutions)){institutions=next;renderFilter()}
       }catch(error){console.error('CompassU institution list load failed',error)}
@@ -66,22 +66,26 @@ export default function Admin50kAccountTableController(){
 
     const paintRows=async()=>{
       if(busy)return;
-      const rows=ensureCell();if(!rows.length)return;
+      const rows=ensureCells();if(!rows.length)return;
       renderFilter();
-      const signature=rows.map(x=>x.email).join('|');
-      if(signature===lastEmails&&rows.every(x=>x.cell.textContent?.trim()&&x.cell.textContent.trim()!=='—'))return;
+      const state=readState();
+      const signature=[state.page,state.page_size,state.search,state.institution,rows.map(x=>x.email).join('|')].join('::');
+      if(signature===lastSignature&&rows.every(x=>x.cell.textContent?.trim()&&x.cell.textContent.trim()!=='—'))return;
       busy=true;
       try{
-        const b=await call('/api/admin/institution-lookup50k',{emails:rows.map(x=>x.email)});
-        const map=b?.institutions||{};
-        for(const item of rows)item.cell.textContent=String(map[item.email]||'—');
-        lastEmails=signature;
+        // Use the exact same server-side paged dataset that drives the account table.
+        // This prevents drift between filtering/counts and the institution value painted on each row.
+        const page=await call({action:'account_page',page:state.page||1,page_size:state.page_size||50,search:state.search||'',institution:state.institution||''});
+        const users=Array.isArray(page?.users)?page.users:[];
+        const byEmail=new Map(users.map(u=>[String(u?.email||'').trim().toLowerCase(),String(u?.institution||'').trim()]));
+        for(const item of rows)item.cell.textContent=byEmail.get(item.email)||'—';
+        lastSignature=signature;
       }catch(error){console.error('CompassU institution row load failed',error)}finally{busy=false}
     };
 
-    const run=()=>{clearTimeout(timer);timer=setTimeout(()=>{renderFilter();paintRows()},80)};
+    const run=()=>{clearTimeout(timer);timer=setTimeout(()=>{renderFilter();paintRows()},100)};
     observer=new MutationObserver(run);observer.observe(document.body,{childList:true,subtree:true});
-    const updated=()=>{lastEmails='';loadInstitutions();run()};
+    const updated=()=>{lastSignature='';loadInstitutions();run()};
     window.addEventListener('compassu:institutions-updated',updated);
     loadInstitutions();run();
     const interval=setInterval(()=>{loadInstitutions();run()},1500);
