@@ -3,9 +3,6 @@
 import {useEffect} from 'react';
 
 const STATE_KEY='compassu_admin_50k_state';
-const SUPABASE_URL=process.env.NEXT_PUBLIC_SUPABASE_URL||'https://xvvgalifibyqwebasalx.supabase.co';
-const SUPABASE_KEY=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY||'sb_publishable_lWtjaYYRk4hd1Bb-yKG3eA_CxF4CW9-';
-const ADMIN_URL=`${SUPABASE_URL}/functions/v1/admin-console-50k`;
 const readSession=()=>{try{return JSON.parse(localStorage.getItem('compassu_session')||'null')}catch{return null}};
 const readState=()=>{try{return JSON.parse(sessionStorage.getItem(STATE_KEY)||'null')||{page:1,page_size:50,search:'',institution:''}}catch{return{page:1,page_size:50,search:'',institution:''}}};
 
@@ -20,71 +17,91 @@ export default function Admin50kVisibleRowRepair(){
     const table=()=>document.querySelector('.adminTable');
     const visibleRows=()=>[...document.querySelectorAll('.adminTable tbody tr')];
 
-    function ensureHeaders(){
+    function rebuildHeader(){
       const head=table()?.querySelector('thead tr');
       if(!head)return;
-      const headers=[...head.querySelectorAll('th')];
-      if(!headers.length)return;
-      let nameHead=head.querySelector('[data-compassu-name-head]')||headers.find(th=>String(th.textContent||'').trim().toLowerCase()==='account');
-      if(nameHead){nameHead.textContent='Name';nameHead.dataset.compassuNameHead='1'}
-      if(nameHead&&!head.querySelector('[data-compassu-email-head]')){
-        const emailHead=document.createElement('th');
-        emailHead.textContent='Email';
-        emailHead.dataset.compassuEmailHead='1';
-        nameHead.insertAdjacentElement('afterend',emailHead);
+      const existing=[...head.querySelectorAll('th')];
+      const selectHead=existing.find(th=>th.classList.contains('accountSelectCell'))||existing[0];
+      if(!selectHead)return;
+      while(head.firstChild)head.removeChild(head.firstChild);
+      head.appendChild(selectHead);
+      for(const label of ['Institution','First Name','Last Name','Email','Created','Last Sign In','Survey Status','Access','Actions']){
+        const th=document.createElement('th');
+        th.textContent=label;
+        th.dataset.compassuCanonicalHead=label.toLowerCase().replace(/\s+/g,'-');
+        head.appendChild(th);
       }
-      if(!head.querySelector('[data-compassu-institution-head]')){
-        const first=head.querySelector('th');
-        if(first){const institutionHead=document.createElement('th');institutionHead.textContent='Institution';institutionHead.dataset.compassuInstitutionHead='1';first.insertAdjacentElement('afterend',institutionHead)}
-      }
+    }
+
+    function canonicalCell(value,kind){
+      const td=document.createElement('td');
+      td.dataset.compassuCanonicalCell=kind;
+      td.textContent=String(value??'').trim()||'—';
+      if(kind==='email')td.style.overflowWrap='anywhere';
+      return td;
     }
 
     function renderRow(row,user){
       if(!row||!user)return;
-      const canonicalEmail=String(user.email||'').trim().toLowerCase();
-      row.dataset.compassuAccountEmail=canonicalEmail;
+      const cells=[...row.querySelectorAll(':scope > td')];
+      if(cells.length<7)return;
 
-      let nameCell=row.querySelector('[data-compassu-name-cell]');
-      if(!nameCell){
-        const cells=[...row.querySelectorAll('td')];
-        nameCell=cells.find(td=>td.querySelector('b')&&!td.classList.contains('accountSelectCell'))||cells[1]||null;
-        if(nameCell)nameCell.dataset.compassuNameCell='1';
+      const selectCell=cells.find(td=>td.classList.contains('accountSelectCell'))||cells[0];
+      let created=cells.find(td=>td.dataset.compassuOriginal==='created');
+      let lastSignIn=cells.find(td=>td.dataset.compassuOriginal==='last-sign-in');
+      let survey=cells.find(td=>td.dataset.compassuOriginal==='survey-status');
+      let access=cells.find(td=>td.dataset.compassuOriginal==='access');
+      let actions=cells.find(td=>td.dataset.compassuOriginal==='actions');
+
+      if(!created||!lastSignIn||!survey||!access||!actions){
+        // The base React table is: select, account, created, last sign in, survey, access, actions.
+        const nonSelect=cells.filter(td=>td!==selectCell && !td.dataset.compassuCanonicalCell);
+        // Recover by position from the unmodified React cells.
+        const base=nonSelect.length>=6?nonSelect:cells.filter(td=>td!==selectCell);
+        created=base[1]||created;
+        lastSignIn=base[2]||lastSignIn;
+        survey=base[3]||survey;
+        access=base[4]||access;
+        actions=base[5]||actions;
+        if(created)created.dataset.compassuOriginal='created';
+        if(lastSignIn)lastSignIn.dataset.compassuOriginal='last-sign-in';
+        if(survey)survey.dataset.compassuOriginal='survey-status';
+        if(access)access.dataset.compassuOriginal='access';
+        if(actions)actions.dataset.compassuOriginal='actions';
       }
-      if(!nameCell)return;
+      if(!created||!lastSignIn||!survey||!access||!actions)return;
 
-      nameCell.textContent='';
-      const strong=document.createElement('b');
-      strong.textContent=[user.first_name,user.last_name].filter(Boolean).join(' ')||'Unnamed account';
-      nameCell.appendChild(strong);
-      if(user.state){const small=document.createElement('small');small.textContent=String(user.state);small.style.display='block';small.style.marginTop='4px';nameCell.appendChild(small)}
-
-      let emailCell=row.querySelector('[data-compassu-email-cell]');
-      if(!emailCell){emailCell=document.createElement('td');emailCell.dataset.compassuEmailCell='1';nameCell.insertAdjacentElement('afterend',emailCell)}
-      emailCell.textContent=canonicalEmail||'—';
-      emailCell.style.overflowWrap='anywhere';
-
-      let institutionCell=row.querySelector('[data-compassu-institution-cell]');
-      if(!institutionCell){const first=row.querySelector('td');institutionCell=document.createElement('td');institutionCell.dataset.compassuInstitutionCell='1';first?.insertAdjacentElement('afterend',institutionCell)}
-      institutionCell.textContent=String(user.institution||'').trim()||'—';
-      institutionCell.dataset.authoritative50k='1';
+      while(row.firstChild)row.removeChild(row.firstChild);
+      row.appendChild(selectCell);
+      row.appendChild(canonicalCell(user.institution,'institution'));
+      row.appendChild(canonicalCell(user.first_name,'first-name'));
+      row.appendChild(canonicalCell(user.last_name,'last-name'));
+      row.appendChild(canonicalCell(String(user.email||'').toLowerCase(),'email'));
+      row.appendChild(created);
+      row.appendChild(lastSignIn);
+      row.appendChild(survey);
+      row.appendChild(access);
+      row.appendChild(actions);
+      row.dataset.compassuAccountEmail=String(user.email||'').toLowerCase();
+      row.dataset.compassuCanonical50k='1';
     }
 
     function paint(){
-      if(!currentUsers.length)return;
-      ensureHeaders();
+      rebuildHeader();
       const rows=visibleRows();
       rows.forEach((row,index)=>renderRow(row,currentUsers[index]));
     }
 
     async function refresh(force=false){
       if(stopped||requestInFlight)return;
-      const session=readSession();if(!session?.access_token)return;
+      const session=readSession();
+      if(!session?.access_token)return;
       const state=readState();
       const signature=JSON.stringify([state.page||1,state.page_size||50,state.search||'',state.institution||'']);
       if(!force&&signature===lastSignature&&currentUsers.length){paint();return}
       requestInFlight=true;
       try{
-        const response=await fetch(ADMIN_URL,{method:'POST',headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${session.access_token}`,'Content-Type':'application/json'},body:JSON.stringify({action:'account_page',page:state.page||1,page_size:state.page_size||50,search:state.search||'',institution:state.institution||''}),cache:'no-store'});
+        const response=await fetch('/api/admin/console50k',{method:'POST',headers:{Authorization:`Bearer ${session.access_token}`,'Content-Type':'application/json'},body:JSON.stringify({action:'account_page',page:state.page||1,page_size:state.page_size||50,search:state.search||'',institution:state.institution||''}),cache:'no-store'});
         const body=await response.json().catch(()=>({}));
         if(response.ok){currentUsers=Array.isArray(body?.users)?body.users:[];lastSignature=signature;paint()}
       }catch{}finally{requestInFlight=false}
