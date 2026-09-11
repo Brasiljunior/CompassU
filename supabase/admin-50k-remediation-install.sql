@@ -28,10 +28,25 @@ with account_stats as (
  select count(*) filter(where status='completed')::bigint completed_surveys,
  count(distinct user_id) filter(where status='completed')::bigint accounts_with_completed_survey,
  count(*) filter(where status='in_progress')::bigint in_progress_surveys from public.assessment_attempts
-), days as (select generate_series(current_date-29,current_date,interval '1 day')::date day),
-new_accounts as (select created_at::date day,count(*)::bigint n from auth.users where created_at>=current_date-29 group by created_at::date),
-completions as (select completed_at::date day,count(*)::bigint n from public.assessment_attempts where status='completed' and completed_at>=current_date-29 group by completed_at::date),
-trend as (select jsonb_agg(jsonb_build_object('date',to_char(d.day,'YYYY-MM-DD'),'new_accounts',coalesce(na.n,0),'completed_surveys',coalesce(c.n,0)) order by d.day) rows from days d left join new_accounts na on na.day=d.day left join completions c on c.day=d.day)
+), days as (
+ select gs::date as activity_date
+ from generate_series(current_date - interval '29 days', current_date, interval '1 day') as gs
+), new_accounts as (
+ select created_at::date as activity_date,count(*)::bigint as n
+ from auth.users
+ where created_at>=current_date-29
+ group by created_at::date
+), completions as (
+ select completed_at::date as activity_date,count(*)::bigint as n
+ from public.assessment_attempts
+ where status='completed' and completed_at>=current_date-29
+ group by completed_at::date
+), trend as (
+ select jsonb_agg(jsonb_build_object('date',to_char(d.activity_date,'YYYY-MM-DD'),'new_accounts',coalesce(na.n,0),'completed_surveys',coalesce(c.n,0)) order by d.activity_date) as rows
+ from days d
+ left join new_accounts na on na.activity_date=d.activity_date
+ left join completions c on c.activity_date=d.activity_date
+)
 select jsonb_build_object('stats',jsonb_build_object('total_accounts',a.total_accounts,'completed_surveys',t.completed_surveys,'accounts_with_completed_survey',t.accounts_with_completed_survey,'completion_rate',case when a.total_accounts=0 then 0 else round((t.accounts_with_completed_survey::numeric/a.total_accounts::numeric)*100,1) end,'in_progress_surveys',t.in_progress_surveys,'new_accounts_7d',a.new_accounts_7d,'new_accounts_30d',a.new_accounts_30d,'suspended_accounts',a.suspended_accounts),'trend',coalesce(tr.rows,'[]'::jsonb)) from account_stats a cross join attempt_stats t cross join trend tr;
 $$;
 
