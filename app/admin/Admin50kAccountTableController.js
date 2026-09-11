@@ -19,14 +19,15 @@ export default function Admin50kAccountTableController(){
       window.dispatchEvent(new CustomEvent('compassu-admin-50k-refresh'));
     };
 
-    const call=async(payload)=>{
+    const sessionFetch=async(path,payload)=>{
       const session=readSession();
       if(!session?.access_token)throw new Error('Administrator login required.');
-      const r=await fetch('/api/admin/console50k',{method:'POST',headers:{Authorization:`Bearer ${session.access_token}`,'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      const r=await fetch(path,{method:'POST',headers:{Authorization:`Bearer ${session.access_token}`,'Content-Type':'application/json'},body:JSON.stringify(payload)});
       const b=await r.json().catch(()=>({}));
       if(!r.ok)throw new Error(b?.error||'Administrator request failed.');
       return b;
     };
+    const call=payload=>sessionFetch('/api/admin/console50k',payload);
 
     const ensureCells=()=>{
       const table=document.querySelector('.adminTable');if(!table)return [];
@@ -73,11 +74,20 @@ export default function Admin50kAccountTableController(){
       if(signature===lastSignature&&rows.every(x=>x.cell.textContent?.trim()&&x.cell.textContent.trim()!=='—'))return;
       busy=true;
       try{
-        // Use the exact same server-side paged dataset that drives the account table.
-        // This prevents drift between filtering/counts and the institution value painted on each row.
         const page=await call({action:'account_page',page:state.page||1,page_size:state.page_size||50,search:state.search||'',institution:state.institution||''});
         const users=Array.isArray(page?.users)?page.users:[];
         const byEmail=new Map(users.map(u=>[String(u?.email||'').trim().toLowerCase(),String(u?.institution||'').trim()]));
+
+        // If an installed SQL version omits/loses the institution field, recover it
+        // directly from account_institutions for only the currently visible emails.
+        const missing=rows.map(x=>x.email).filter(email=>!byEmail.get(email));
+        if(missing.length){
+          const lookup=await sessionFetch('/api/admin/institution-lookup50k',{emails:missing});
+          for(const [email,institution] of Object.entries(lookup?.institutions||{})){
+            if(institution)byEmail.set(String(email).toLowerCase(),String(institution));
+          }
+        }
+
         for(const item of rows)item.cell.textContent=byEmail.get(item.email)||'—';
         lastSignature=signature;
       }catch(error){console.error('CompassU institution row load failed',error)}finally{busy=false}
