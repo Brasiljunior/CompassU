@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 const STATE_KEY='compassu_admin_50k_state';
 const readState=()=>{try{return JSON.parse(sessionStorage.getItem(STATE_KEY)||'null')||{page:1,page_size:50,search:''}}catch{return{page:1,page_size:50,search:''}}};
 const writeState=s=>{try{sessionStorage.setItem(STATE_KEY,JSON.stringify(s))}catch{}};
+const isAdminConsole=url=>url?.includes('/functions/v1/admin-console')||url?.includes('/api/admin/console50k');
 
 export default function Admin50kPagingEnhancer(){
   useEffect(()=>{
@@ -61,13 +62,11 @@ export default function Admin50kPagingEnhancer(){
 
     window.fetch=async(input,init)=>{
       let nextInit=init;
+      const rawUrl=typeof input==='string'?input:input?.url;
       try{
-        const rawUrl=typeof input==='string'?input:input?.url;
-        if(rawUrl?.includes('/api/admin/console50k')&&init?.body){
+        if(isAdminConsole(rawUrl)&&init?.body){
           const body=JSON.parse(init.body);
           if(body?.action==='overview'||body?.action==='refresh'){
-            const liveSearch=document.querySelector('.adminSearch[placeholder*="Search"]')?.value;
-            if(typeof liveSearch==='string'&&liveSearch.trim()===state.search){/* keep current committed search */}
             body.page=state.page||1;
             body.page_size=state.page_size||50;
             body.search=state.search||'';
@@ -77,10 +76,14 @@ export default function Admin50kPagingEnhancer(){
       }catch{}
       const response=await originalFetch(input,nextInit);
       try{
-        const rawUrl=typeof input==='string'?input:input?.url;
-        if(rawUrl?.includes('/api/admin/console50k')&&response.ok){
+        if(isAdminConsole(rawUrl)&&response.ok){
           const body=await response.clone().json();
-          if(body?.pagination){pagination=body.pagination;state={...state,page:Number(pagination.page||1),page_size:Number(pagination.page_size||state.page_size||50)};writeState(state);schedule()}
+          if(body?.pagination){
+            pagination=body.pagination;
+            state={...state,page:Number(pagination.page||1),page_size:Number(pagination.page_size||state.page_size||50)};
+            writeState(state);
+            schedule();
+          }
         }
       }catch{}
       return response;
