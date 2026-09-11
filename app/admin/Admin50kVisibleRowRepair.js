@@ -3,6 +3,9 @@
 import {useEffect} from 'react';
 
 const STATE_KEY='compassu_admin_50k_state';
+const SUPABASE_URL=process.env.NEXT_PUBLIC_SUPABASE_URL||'https://xvvgalifibyqwebasalx.supabase.co';
+const SUPABASE_KEY=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY||'sb_publishable_lWtjaYYRk4hd1Bb-yKG3eA_CxF4CW9-';
+const ADMIN_URL=`${SUPABASE_URL}/functions/v1/admin-console-50k`;
 const readSession=()=>{try{return JSON.parse(localStorage.getItem('compassu_session')||'null')}catch{return null}};
 const readState=()=>{try{return JSON.parse(sessionStorage.getItem(STATE_KEY)||'null')||{page:1,page_size:50,search:'',institution:''}}catch{return{page:1,page_size:50,search:'',institution:''}}};
 
@@ -67,6 +70,7 @@ export default function Admin50kVisibleRowRepair(){
     }
 
     function paint(){
+      if(!currentUsers.length)return;
       ensureHeaders();
       const rows=visibleRows();
       rows.forEach((row,index)=>renderRow(row,currentUsers[index]));
@@ -80,7 +84,7 @@ export default function Admin50kVisibleRowRepair(){
       if(!force&&signature===lastSignature&&currentUsers.length){paint();return}
       requestInFlight=true;
       try{
-        const response=await fetch('/api/admin/console50k',{method:'POST',headers:{Authorization:`Bearer ${session.access_token}`,'Content-Type':'application/json'},body:JSON.stringify({action:'account_page',page:state.page||1,page_size:state.page_size||50,search:state.search||'',institution:state.institution||''}),cache:'no-store'});
+        const response=await fetch(ADMIN_URL,{method:'POST',headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${session.access_token}`,'Content-Type':'application/json'},body:JSON.stringify({action:'account_page',page:state.page||1,page_size:state.page_size||50,search:state.search||'',institution:state.institution||''}),cache:'no-store'});
         const body=await response.json().catch(()=>({}));
         if(response.ok){currentUsers=Array.isArray(body?.users)?body.users:[];lastSignature=signature;paint()}
       }catch{}finally{requestInFlight=false}
