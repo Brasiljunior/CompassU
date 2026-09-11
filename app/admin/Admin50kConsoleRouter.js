@@ -9,7 +9,8 @@ export default function Admin50kConsoleRouter(){
       try{
         const rawUrl=typeof input==='string'?input:input?.url;
         if(rawUrl?.includes('/functions/v1/admin-console')){
-          return originalFetch('/api/admin/console50k',init);
+          const secureUrl=rawUrl.replace('/functions/v1/admin-console','/functions/v1/admin-console-50k');
+          return originalFetch(secureUrl,init);
         }
       }catch{}
       return originalFetch(input,init);
