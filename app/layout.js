@@ -1,5 +1,6 @@
 import './globals.css';
 import './brand-refresh.css';
+import './wcag22-contrast.css';
 import MajorDescriptions from './MajorDescriptions';
 import CareerOverviewInjector from './CareerOverviewInjector';
 import AuthRedirectGuard from './AuthRedirectGuard';
