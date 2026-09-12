@@ -1,6 +1,6 @@
 # CompassU Item #7 — WCAG 2.2 AA & Device/Browser QA Baseline
 
-**Status:** In progress  
+**Status:** In progress — remediation substantially complete; final deployed QA still required  
 **Branch:** `remediation-accessibility-wcag22`  
 **Target:** WCAG 2.2 Level AA for core pilot workflows
 
@@ -32,7 +32,7 @@ The initial review identified accessibility gaps that are common blockers for WC
 - The single-page workflow needs a reliable skip-to-content mechanism and stable landmarks.
 - Very narrow viewport/reflow behavior needs explicit testing below the current 600px breakpoint.
 
-## Remediation batch 1
+## Remediation batch 1 — student/public experience
 
 Implemented on the accessibility branch:
 
@@ -50,35 +50,68 @@ Implemented on the accessibility branch:
 - Added additional narrow-screen reflow rules at 400px.
 - Converted legal links/footer and administrator launcher to reusable semantic/styled elements with visible focus support.
 
-## Validation still required
+## Remediation batch 2 — administrator dashboard
 
-Item #7 is not complete until the following are verified against the deployed preview:
+Implemented on the accessibility branch:
 
-- Full keyboard-only walkthrough with no keyboard trap and logical focus order.
-- Screen-reader semantics for landing, auth, assessment and results.
-- Contrast review for text, buttons, focus indicators, disabled states and data visualizations.
-- 200% and 400% zoom/reflow validation.
+- Added administrator skip navigation and stable main-content focus targets.
+- Added explicit focus-visible treatment throughout administrator controls.
+- Increased compact administrator action controls toward the WCAG 2.2 target-size expectation.
+- Improved narrow-screen wrapping/reflow of administrator headers, panels, filters, action bars and tables.
+- Added accessible names to unlabeled controls and account-selection checkboxes.
+- Added table labeling and column-scope semantics.
+- Added live-region behavior for administrative errors, notices and success messages.
+- Added accessible description for the 30-day activity visualization.
+- Added reduced-motion support to administrator transitions/animations.
+- Improved contrast of secondary administrator text where needed for readability.
+- Added dialog semantics and keyboard focus containment to administrator modal dialogs.
+
+## Remediation batch 3 — MFA, analytics and reporting
+
+Implemented on the accessibility branch:
+
+- Added programmatic label association and error relationships to the administrator MFA verification-code field.
+- Added assistive-technology instructions for MFA enrollment/verification.
+- Added live status/alert behavior during MFA checking and failure states.
+- Improved QR-code alternative text and manual authenticator setup-key instructions.
+- Ensured Enter-key verification does not fire until a complete six-digit code is present.
+- Added accessible labeling for the institutional analytics institution filter.
+- Added status semantics to dynamic analytics loading states.
+- Added accessible summaries for career-cluster visual bars so color/length is not the only conveyed information.
+- Extended table labeling across analytics/comparison tables.
+- Added dialog keyboard containment for administrator details/modals.
+
+## Current validation status
+
+Code-level remediation now covers the principal WCAG blockers identified in the initial audit. Preview deployments for the public/student and administrator remediation batches have built successfully on Vercel. The remaining work is deployed-experience QA rather than another broad structural remediation pass.
+
+The following still require explicit validation before Item #7 is closed:
+
+- Full keyboard-only walkthrough with logical focus order and no keyboard trap.
+- Screen-reader spot checks of landing, authentication, assessment, results, administrator MFA, account management and analytics.
+- Contrast verification for text, controls, focus indicators, disabled states and data visualizations.
+- 200% and 400% zoom/reflow verification.
 - Portrait/landscape validation at representative phone/tablet sizes.
 - Chrome, Edge, Safari and Firefox coverage appropriate to the pilot audience.
-- Admin account-management table keyboard behavior, selection controls, bulk deletion and dialogs.
-- MFA, password reset and invitation flows.
-- Dynamic dashboard/results focus management after SPA view transitions.
-- PDF/report accessibility limitations documented separately from web WCAG conformance.
+- Bulk account deletion and administrator modal workflows after the new dialog semantics.
+- Password reset and invitation flows.
+- Dynamic SPA focus behavior when switching major views.
+- PDF/report accessibility documented separately; generated PDFs should not be represented as WCAG-conformant web content without a dedicated tagged-PDF assessment.
 
 ## Device/browser matrix
 
-Planned minimum matrix:
+Minimum closure matrix:
 
 | Class | Representative viewport/browser | Status |
 |---|---|---|
-| Desktop | Chrome / 1440px | Pending |
-| Desktop | Edge / 1440px | Pending |
-| Desktop | Firefox / 1440px | Pending |
-| macOS | Safari / desktop | Pending |
-| Tablet | iPad/Safari-class viewport | Pending |
-| Mobile | iPhone/Safari-class viewport | Pending |
-| Mobile | Android/Chrome-class viewport | Pending |
-| Reflow | 320px CSS viewport / 400% equivalent | Pending |
+| Desktop | Chrome / 1440px | Pending final walkthrough |
+| Desktop | Edge / 1440px | Pending final walkthrough |
+| Desktop | Firefox / 1440px | Pending final walkthrough |
+| macOS | Safari / desktop | Pending final walkthrough |
+| Tablet | iPad/Safari-class viewport | Pending final walkthrough |
+| Mobile | iPhone/Safari-class viewport | Pending final walkthrough |
+| Mobile | Android/Chrome-class viewport | Pending final walkthrough |
+| Reflow | 320px CSS viewport / 400% equivalent | CSS remediation applied; final walkthrough pending |
 
 ## Completion gate
 
