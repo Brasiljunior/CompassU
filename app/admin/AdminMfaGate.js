@@ -96,21 +96,21 @@ export default function AdminMfaGate({children}){
 
   if(status==='signed_out')return children;
   if(status==='verified')return children;
-  if(status==='checking')return <MfaShell><p>Checking administrator security…</p></MfaShell>;
-  if(status==='error')return <MfaShell><h1>Administrator Security</h1><p>{error}</p><button className="btn primary" onClick={signOut}>Return to sign in</button></MfaShell>;
+  if(status==='checking')return <MfaShell><p role="status" aria-live="polite">Checking administrator security…</p></MfaShell>;
+  if(status==='error')return <MfaShell><h1>Administrator Security</h1><p role="alert">{error}</p><button className="btn primary" onClick={signOut}>Return to sign in</button></MfaShell>;
 
   return <MfaShell>
     <div className="adminKicker">ADMINISTRATOR SECURITY</div>
     <h1>{status==='enroll'?'Set up multi-factor authentication':'Verify multi-factor authentication'}</h1>
-    <p>{status==='enroll'?'CompassU administrators must use a second factor. Scan this code in an authenticator app, then enter the six-digit code.':'Enter the six-digit code from your authenticator app to continue to the CompassU administrator dashboard.'}</p>
-    {status==='enroll'&&qr&&<img src={qr} alt="CompassU administrator MFA QR code" style={{maxWidth:220,width:'100%',margin:'14px auto',display:'block'}}/>}
-    {status==='enroll'&&secret&&<details><summary>Can’t scan the QR code?</summary><code style={{display:'block',wordBreak:'break-all',marginTop:8}}>{secret}</code></details>}
-    <label style={{display:'block',marginTop:18,fontWeight:700}}>Verification code</label>
-    <input inputMode="numeric" autoComplete="one-time-code" value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,'').slice(0,6))} onKeyDown={e=>e.key==='Enter'&&verify()} placeholder="123456" style={{width:'100%',marginTop:8}}/>
-    {error&&<div className="error" style={{marginTop:12}}>{error}</div>}
+    <p id="mfa-instructions">{status==='enroll'?'CompassU administrators must use a second factor. Scan this code in an authenticator app, then enter the six-digit code.':'Enter the six-digit code from your authenticator app to continue to the CompassU administrator dashboard.'}</p>
+    {status==='enroll'&&qr&&<img src={qr} alt="QR code for setting up CompassU administrator multi-factor authentication" style={{maxWidth:220,width:'100%',margin:'14px auto',display:'block'}}/>}
+    {status==='enroll'&&secret&&<details><summary>Can’t scan the QR code?</summary><p className="small">Enter this setup key manually in your authenticator app.</p><code style={{display:'block',wordBreak:'break-all',marginTop:8}}>{secret}</code></details>}
+    <label htmlFor="admin-mfa-code" style={{display:'block',marginTop:18,fontWeight:700}}>Verification code</label>
+    <input id="admin-mfa-code" inputMode="numeric" pattern="[0-9]*" autoComplete="one-time-code" aria-describedby="mfa-instructions" aria-invalid={Boolean(error)} aria-errormessage={error?'admin-mfa-error':undefined} value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,'').slice(0,6))} onKeyDown={e=>e.key==='Enter'&&code.length===6&&!busy&&verify()} placeholder="123456" style={{width:'100%',marginTop:8}}/>
+    {error&&<div id="admin-mfa-error" className="error" role="alert" aria-live="assertive" style={{marginTop:12}}>{error}</div>}
     <button className="btn primary wide" disabled={busy||code.length<6} onClick={verify} style={{marginTop:14}}>{busy?'Verifying…':'Verify and continue'}</button>
     <button className="btn ghost wide" onClick={signOut} style={{marginTop:8}}>Cancel and sign out</button>
   </MfaShell>;
 }
 
-function MfaShell({children}){return <div className="adminShell"><main className="adminLoginWrap"><div className="adminLoginCard">{children}</div></main></div>}
+function MfaShell({children}){return <div className="adminShell"><main id="main-content" className="adminLoginWrap" tabIndex="-1"><div className="adminLoginCard">{children}</div></main></div>}
