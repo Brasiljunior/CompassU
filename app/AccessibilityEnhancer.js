@@ -79,8 +79,17 @@ export default function AccessibilityEnhancer(){
         const group=card.querySelector('.choices');
         if(question&&group){
           if(!question.id)question.id=`assessment-question-${index+1}`;
+          if(!card.querySelector('.assessmentInputNotice')){
+            const notice=document.createElement('p');
+            notice.className='assessmentInputNotice muted small';
+            notice.textContent='Selecting an answer saves your response and automatically advances to the next question.';
+            group.before(notice);
+          }
+          const notice=card.querySelector('.assessmentInputNotice');
+          if(notice&&!notice.id)notice.id=`assessment-answer-behavior-${index+1}`;
           group.setAttribute('role','radiogroup');
           group.setAttribute('aria-labelledby',question.id);
+          if(notice)group.setAttribute('aria-describedby',notice.id);
           group.removeAttribute('aria-label');
           group.querySelectorAll('button.choice').forEach((button)=>{
             button.setAttribute('role','radio');
