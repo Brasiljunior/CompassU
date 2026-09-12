@@ -1,0 +1,5 @@
+/* WCAG 2.2 AA contrast hardening for interactive component boundaries and low-contrast secondary text. */
+.field input,.select,.jobLocation,.choice,.iconBtn,.chip,.notice{border-color:#8a94a6!important}
+.choice[aria-checked="true"],.field input:focus-visible,.select:focus-visible,.jobLocation:focus-visible{border-color:#0b63ce!important}
+button:disabled,.btn:disabled{opacity:.65}
+@media(forced-colors:active){.field input,.select,.jobLocation,.choice,.iconBtn,.chip,.notice{border-color:ButtonText!important}}
