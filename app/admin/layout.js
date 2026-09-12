@@ -1,4 +1,5 @@
 import './admin.css';
+import './admin-accessibility.css';
 import './batch-guard.css';
 import './batch-history.css';
 import './monthly-recipient-controls.css';
