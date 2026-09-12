@@ -9,6 +9,8 @@ function slugify(value=''){
 export default function AccessibilityEnhancer(){
   useEffect(()=>{
     let fieldCounter=0;
+    let lastMain=null;
+    let initializedMain=false;
 
     const enhance=()=>{
       document.querySelectorAll('.nav').forEach((node)=>{
@@ -19,6 +21,14 @@ export default function AccessibilityEnhancer(){
       const mainCandidate=document.querySelector('main,.assessment,.dashboard,.center');
       if(mainCandidate && !mainCandidate.id) mainCandidate.id='main-content';
       if(mainCandidate && mainCandidate.tagName!=='MAIN' && !mainCandidate.hasAttribute('role')) mainCandidate.setAttribute('role','main');
+      if(mainCandidate && mainCandidate!==lastMain){
+        if(initializedMain){
+          mainCandidate.setAttribute('tabindex','-1');
+          requestAnimationFrame(()=>mainCandidate.focus({preventScroll:false}));
+        }
+        lastMain=mainCandidate;
+        initializedMain=true;
+      }
 
       document.querySelectorAll('.field').forEach((field)=>{
         const input=field.querySelector('input,select,textarea');
@@ -29,13 +39,17 @@ export default function AccessibilityEnhancer(){
           input.id=`compassu-${slugify(label.textContent)}-${fieldCounter}`;
         }
         if(!label.htmlFor) label.htmlFor=input.id;
-        const text=(label.textContent||'').toLowerCase();
-        if(input.tagName==='INPUT' && !input.autocomplete){
+        const text=(label.textContent||'').trim().toLowerCase();
+        if(input.tagName==='INPUT'){
           if(text.includes('first name')) input.autocomplete='given-name';
           else if(text.includes('last name')) input.autocomplete='family-name';
           else if(text==='email') input.autocomplete='email';
-          else if(text.includes('current password')||text==='password') input.autocomplete='current-password';
           else if(text.includes('new password')||text.includes('create password')) input.autocomplete='new-password';
+          else if(text.includes('current password')) input.autocomplete='current-password';
+          else if(text==='password'){
+            const activeTab=(document.querySelector('.tabs .primary')?.textContent||'').trim().toLowerCase();
+            input.autocomplete=activeTab.includes('create')?'new-password':'current-password';
+          }
         }
       });
 
@@ -60,14 +74,20 @@ export default function AccessibilityEnhancer(){
         node.setAttribute('aria-valuetext',`${value}% complete`);
       });
 
-      document.querySelectorAll('.choices').forEach((group)=>{
-        group.setAttribute('role','radiogroup');
-        group.setAttribute('aria-label','Answer choices');
-        group.querySelectorAll('button.choice').forEach((button)=>{
-          button.setAttribute('role','radio');
-          button.setAttribute('aria-checked',button.classList.contains('selected')?'true':'false');
-          if(!button.hasAttribute('type')) button.setAttribute('type','button');
-        });
+      document.querySelectorAll('.qCard').forEach((card,index)=>{
+        const question=card.querySelector('.question');
+        const group=card.querySelector('.choices');
+        if(question&&group){
+          if(!question.id)question.id=`assessment-question-${index+1}`;
+          group.setAttribute('role','radiogroup');
+          group.setAttribute('aria-labelledby',question.id);
+          group.removeAttribute('aria-label');
+          group.querySelectorAll('button.choice').forEach((button)=>{
+            button.setAttribute('role','radio');
+            button.setAttribute('aria-checked',button.classList.contains('selected')?'true':'false');
+            if(!button.hasAttribute('type')) button.setAttribute('type','button');
+          });
+        }
       });
 
       document.querySelectorAll('button').forEach((button)=>{
