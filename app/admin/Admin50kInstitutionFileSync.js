@@ -72,6 +72,7 @@ export default function Admin50kInstitutionFileSync(){
     const onChange=async event=>{
       const input=event.target;
       if(busy||!input?.matches?.('input[type="file"]'))return;
+      if(input.closest?.('.batch500Root'))return;
       const file=input.files?.[0];if(!file||!/(\.xlsx|\.xls|\.csv)$/i.test(file.name))return;
       try{
         const XLSX=await import('xlsx');
