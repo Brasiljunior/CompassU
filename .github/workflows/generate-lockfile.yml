@@ -1,0 +1,40 @@
+name: CompassU Deterministic Lockfile Validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [remediation-deterministic-build]
+    paths:
+      - package.json
+      - .github/workflows/generate-lockfile.yml
+
+permissions:
+  contents: read
+
+jobs:
+  generate-and-validate:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: test_publishable_key
+    steps:
+      - name: Checkout remediation branch
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Generate package lock
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Verify lockfile exists
+        run: test -s package-lock.json
+      - name: Clean install from lockfile
+        run: npm ci
+      - name: Build CompassU
+        run: npm run build
+      - name: Upload generated lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: compassu-package-lock
+          path: package-lock.json
+          if-no-files-found: error
