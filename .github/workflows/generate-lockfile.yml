@@ -30,11 +30,24 @@ jobs:
         run: test -s package-lock.json
       - name: Clean install from lockfile
         run: npm ci
+      - name: Dependency audit details
+        run: |
+          npm audit --json > npm-audit.json || true
+          node - <<'NODE'
+          const fs=require('fs');
+          const a=JSON.parse(fs.readFileSync('npm-audit.json','utf8'));
+          console.log('VULNERABILITY_SUMMARY', JSON.stringify(a.metadata?.vulnerabilities||{}));
+          for (const [name,v] of Object.entries(a.vulnerabilities||{})) {
+            console.log('VULNERABILITY', JSON.stringify({name,severity:v.severity,isDirect:v.isDirect,via:v.via,effects:v.effects,range:v.range,nodes:v.nodes,fixAvailable:v.fixAvailable}));
+          }
+          NODE
       - name: Build CompassU
         run: npm run build
-      - name: Upload generated lockfile
+      - name: Upload generated lockfile and audit
         uses: actions/upload-artifact@v4
         with:
-          name: compassu-package-lock
-          path: package-lock.json
+          name: compassu-deterministic-build
+          path: |
+            package-lock.json
+            npm-audit.json
           if-no-files-found: error
