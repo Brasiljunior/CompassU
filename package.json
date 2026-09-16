@@ -11,8 +11,11 @@
     "@supabase/supabase-js": "2.116.0",
     "jspdf": "4.2.1",
     "next": "15.5.24",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  },
+  "overrides": {
+    "postcss": "8.5.23"
   }
 }

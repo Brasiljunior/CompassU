@@ -2,9 +2,9 @@ name: CompassU CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, release-candidate-pilot-10k]
   push:
-    branches: [main]
+    branches: [main, release-candidate-pilot-10k, remediation-deterministic-build]
 
 jobs:
   build:
@@ -19,7 +19,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Install dependencies
-        run: npm install
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Require clean dependency audit
+        run: npm audit --audit-level=moderate
       - name: Build
         run: npm run build
