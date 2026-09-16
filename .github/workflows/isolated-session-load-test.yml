@@ -1,0 +1,47 @@
+name: CompassU Isolated Session Load Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  session-baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout isolated load-test assets only
+        uses: actions/checkout@v4
+        with:
+          ref: load-test-pilot-10k
+
+      - name: Verify isolated session test and target
+        shell: bash
+        run: |
+          test -f load-tests/session-baseline.js || { echo "Missing isolated session test"; exit 1; }
+          grep -q "itmxtmasbslmciaopnow" load-tests/session-baseline.js || { echo "Isolated Supabase safety guard missing"; exit 1; }
+
+      - name: Install k6
+        shell: bash
+        run: |
+          sudo gpg -k
+          curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+
+      - name: Run 50-user authenticated session baseline
+        env:
+          SUPABASE_URL: https://itmxtmasbslmciaopnow.supabase.co
+          SUPABASE_KEY: ${{ secrets.LOAD_TEST_SUPABASE_PUBLISHABLE_KEY }}
+          LOAD_TEST_PASSWORD: ${{ secrets.LOAD_TEST_USER_PASSWORD }}
+        run: k6 run --summary-export=load-tests/session-baseline-summary.json load-tests/session-baseline.js
+
+      - name: Upload load-test summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: session-baseline-summary
+          path: load-tests/session-baseline-summary.json
+          if-no-files-found: warn
