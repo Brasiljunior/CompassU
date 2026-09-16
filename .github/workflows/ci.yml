@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main, release-candidate-pilot-10k]
   push:
-    branches: [main, release-candidate-pilot-10k, remediation-deterministic-build]
+    branches: [main, release-candidate-pilot-10k, remediation-targeted-regression-tests]
 
 jobs:
   build:
@@ -24,5 +24,7 @@ jobs:
         run: npm ci
       - name: Require clean dependency audit
         run: npm audit --audit-level=moderate
+      - name: Run targeted pilot regression tests
+        run: npm run test:pilot
       - name: Build
         run: npm run build
