@@ -1,0 +1,3 @@
+CompassU isolated load-test deployment trigger.
+Supabase target: itmxtmasbslmciaopnow
+Production load testing prohibited.

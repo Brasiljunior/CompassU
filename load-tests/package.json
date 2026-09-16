@@ -1,0 +1,1 @@
+{"private":true,"scripts":{"test:baseline":"k6 run baseline.js"}}
