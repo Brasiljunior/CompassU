@@ -8,6 +8,7 @@ const baseHeaders = { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' }
 
 function getSession(){try{return JSON.parse(localStorage.getItem('compassu_session')||'null')}catch{return null}}
 function saveSession(session){localStorage.setItem('compassu_session',JSON.stringify(session))}
+function clearCompassUSession(){localStorage.removeItem('compassu_session');sessionStorage.removeItem('compassu_confirmation_reloaded')}
 
 export default function AcceptInvite(){
   const[ready,setReady]=useState(false);
@@ -30,6 +31,17 @@ export default function AcceptInvite(){
         const tokenType=hash.get('token_type')||'bearer';
         const expiresIn=Number(hash.get('expires_in')||3600);
         const hashError=hash.get('error_description');
+        const params=new URLSearchParams(window.location.search);
+        const tokenHash=params.get('token_hash');
+        const type=params.get('type')||'invite';
+        const hasInvitationContext=Boolean(accessToken||tokenHash||hashError||hash.get('type')==='invite');
+
+        // A one-time invitation must never inherit the identity of an account
+        // that happens to be signed in in this browser (for example, an admin
+        // testing a student invitation). Isolate the invitation before reading
+        // any previously saved CompassU session.
+        if(hasInvitationContext)clearCompassUSession();
+
         if(hashError){if(!cancelled)setError(hashError.replace(/\+/g,' '));return;}
         if(accessToken){
           const userRes=await fetch(`${SUPABASE_URL}/auth/v1/user`,{headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${accessToken}`}});
@@ -39,10 +51,12 @@ export default function AcceptInvite(){
           saveSession(session);history.replaceState({},document.title,window.location.pathname);
           if(!cancelled){setReady(true);setEmail(user?.email||'');setPendingToken(null)}return;
         }
+        if(tokenHash){if(!cancelled)setPendingToken({tokenHash,type});return;}
+
+        // Only a normal visit to /accept-invite with no invitation context may
+        // reuse an existing CompassU session. Invitation links always win.
         const existing=getSession();
         if(existing?.access_token){if(!cancelled){setReady(true);setEmail(existing?.user?.email||'')}return;}
-        const params=new URLSearchParams(window.location.search);const tokenHash=params.get('token_hash');const type=params.get('type')||'invite';
-        if(tokenHash){if(!cancelled)setPendingToken({tokenHash,type});return;}
       }catch(e){if(!cancelled)setError(e.message)}finally{if(!cancelled)setLoading(false)}
     }
     initialize();return()=>{cancelled=true};
@@ -51,6 +65,7 @@ export default function AcceptInvite(){
   function acceptInvitation(){
     if(!pendingToken){setError('This invitation is missing its verification token. Please request a new invitation.');return;}
     setBusy(true);setError('');
+    clearCompassUSession();
     const redirectTo=`${window.location.origin}/accept-invite`;
     window.location.href=`${SUPABASE_URL}/auth/v1/verify?token=${encodeURIComponent(pendingToken.tokenHash)}&type=${encodeURIComponent(pendingToken.type||'invite')}&redirect_to=${encodeURIComponent(redirectTo)}`;
   }
@@ -71,7 +86,7 @@ export default function AcceptInvite(){
         const confirmResponse=await fetch(`${SUPABASE_URL}/functions/v1/password-change-confirmation`,{method:'POST',headers:{...baseHeaders,Authorization:`Bearer ${session.access_token}`},body:JSON.stringify({event:'account_created'})});
         confirmationSent=confirmResponse.ok;
       }catch(e){console.error('CompassU account confirmation email failed',e)}
-      localStorage.removeItem('compassu_session');sessionStorage.removeItem('compassu_confirmation_reloaded');
+      clearCompassUSession();
       setPassword('');setConfirmPassword('');setReady(false);
       setMessage(confirmationSent?'Your CompassU account is ready. Your password was created successfully, and a confirmation email has been sent. You can now log in.':'Your CompassU account is ready. Your password was created successfully. You can now log in.');
     }catch(e){setError(e.message)}finally{setBusy(false)}
