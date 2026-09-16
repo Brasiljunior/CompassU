@@ -1,0 +1,7 @@
+import http from 'k6/http';
+import { check, sleep } from 'k6';
+const U=__ENV.SUPABASE_URL,K=__ENV.SUPABASE_KEY,P=__ENV.LOAD_TEST_PASSWORD;
+if(!U||!K||!P)throw new Error('Missing load-test environment variables');
+if(!U.includes('itmxtmasbslmciaopnow'))throw new Error('Refusing to run outside isolated load-test Supabase branch');
+export const options={scenarios:{auth_retry:{executor:'per-vu-iterations',vus:50,iterations:1,maxDuration:'90s'}},thresholds:{checks:['rate>0.99']}};
+export default function(){const n=String(__VU).padStart(3,'0');const email=`compassu-loadtest-${n}@example.invalid`;let token=null,last=0,attempts=0;for(let a=0;a<7&&!token;a++){attempts=a+1;const r=http.post(`${U}/auth/v1/token?grant_type=password`,JSON.stringify({email,password:P}),{headers:{apikey:K,'Content-Type':'application/json'},tags:{phase:'auth_retry'}});last=r.status;if(r.status===200){token=r.json('access_token');break}if(r.status!==429)break;const retry=Number(r.headers['Retry-After']||0);const wait=retry>0?Math.min(retry,8):Math.min(.75*Math.pow(1.65,a)+(Math.random()*.7),8);sleep(wait)}check(null,{'student ultimately authenticates':()=>!!token});if(token){const p=http.get(`${U}/rest/v1/profiles?select=id&limit=1`,{headers:{apikey:K,Authorization:`Bearer ${token}`},tags:{phase:'post_auth'}});check(p,{'authenticated CompassU session works':r=>r.status===200});}else console.error(`AUTH_RETRY_EXHAUSTED vu=${__VU} attempts=${attempts} status=${last}`);}
