@@ -1,0 +1,36 @@
+name: CompassU Isolated Classroom Login Queue Test
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  classroom-login-queue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: load-test-pilot-10k
+      - name: Verify isolated target
+        run: |
+          test -f load-tests/auth-classroom-queue.js
+          grep -q "itmxtmasbslmciaopnow" load-tests/auth-classroom-queue.js
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update && sudo apt-get install -y k6
+      - name: Run classroom-aware authentication queue validation
+        env:
+          SUPABASE_URL: https://itmxtmasbslmciaopnow.supabase.co
+          SUPABASE_KEY: ${{ secrets.LOAD_TEST_SUPABASE_PUBLISHABLE_KEY }}
+          LOAD_TEST_PASSWORD: ${{ secrets.LOAD_TEST_USER_PASSWORD }}
+        run: k6 run --summary-export=load-tests/auth-classroom-queue-summary.json load-tests/auth-classroom-queue.js
+      - name: Upload summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth-classroom-queue-summary
+          path: load-tests/auth-classroom-queue-summary.json
+          if-no-files-found: warn
