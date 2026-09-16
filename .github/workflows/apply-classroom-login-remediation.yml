@@ -1,0 +1,43 @@
+name: Apply CompassU Classroom Login Remediation
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/apply-classroom-login-remediation.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch-login:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: remediation-classroom-login-queue
+          fetch-depth: 0
+      - name: Patch login with validated classroom-aware retry behavior
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app/page.js')
+          s=p.read_text()
+          old=""" async function login(){setBusy(true);setMessage('');try{const response=await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`,{method:'POST',headers:baseHeaders,body:JSON.stringify({email:form.email,password:form.password})});const text=await response.text();let body={};try{body=text?JSON.parse(text):{}}catch{throw new Error(`Login service returned an unexpected response (${response.status}). Please try again.`)}if(!response.ok)throw new Error(body.error_description||body.msg||body.message||'Login failed');localStorage.setItem('compassu_session',JSON.stringify(body));setSession(body);setView('dashboard');await Promise.all([loadResults(body),loadFavorites(body)])}catch(error){setMessage(error.message)}finally{setBusy(false)}}"""
+          new=""" async function login(){setBusy(true);setMessage('');try{let body=null;for(let attempt=0;attempt<8;attempt++){const response=await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`,{method:'POST',headers:baseHeaders,body:JSON.stringify({email:form.email,password:form.password})});const text=await response.text();let parsed={};try{parsed=text?JSON.parse(text):{}}catch{throw new Error(`Login service returned an unexpected response (${response.status}). Please try again.`)}if(response.ok){body=parsed;break}if(response.status!==429)throw new Error(parsed.error_description||parsed.msg||parsed.message||'Login failed');setMessage('A large number of students are signing in right now. CompassU is connecting you automatically. Please keep this page open.');const retryAfter=Number(response.headers.get('Retry-After')||0);const base=Math.min(6+(attempt*3),18);const waitSeconds=retryAfter>0?Math.max(retryAfter,base+Math.random()*8):base+Math.random()*12;await new Promise(resolve=>setTimeout(resolve,Math.min(waitSeconds,25)*1000))}if(!body)throw new Error('CompassU is experiencing unusually heavy sign-in traffic. Please wait a moment and try again.');localStorage.setItem('compassu_session',JSON.stringify(body));setSession(body);setMessage('');setView('dashboard');await Promise.all([loadResults(body),loadFavorites(body)])}catch(error){setMessage(error.message)}finally{setBusy(false)}}"""
+          count=s.count(old)
+          if count != 1:
+              raise SystemExit(f'Expected exactly one login function match, found {count}; refusing unsafe patch')
+          p.write_text(s.replace(old,new,1))
+          PY
+      - name: Verify patch
+        run: |
+          grep -q "CompassU is connecting you automatically" app/page.js
+          grep -q "response.status!==429" app/page.js
+          git diff --check
+          git diff -- app/page.js
+      - name: Commit remediation branch
+        run: |
+          git config user.name "CompassU Release Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add app/page.js
+          git diff --cached --quiet && exit 0
+          git commit -m "Add classroom-aware login retry queue"
+          git push origin HEAD:remediation-classroom-login-queue
