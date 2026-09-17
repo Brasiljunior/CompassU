@@ -1,0 +1,16 @@
+.adminTrend .trendBars {
+  display: grid;
+  grid-template-columns: repeat(30, minmax(0, 1fr));
+  gap: 4px;
+  align-items: end;
+  height: 180px;
+  min-height: 0;
+  padding: 8px 0 0;
+  overflow: hidden;
+}
+
+@media (max-width: 1080px) {
+  .adminTrend .trendBars {
+    gap: 2px;
+  }
+}

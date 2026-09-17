@@ -1,8 +1,12 @@
 import './globals.css';
 import './brand-refresh.css';
+import './wcag22-contrast.css';
 import MajorDescriptions from './MajorDescriptions';
 import CareerOverviewInjector from './CareerOverviewInjector';
 import AuthRedirectGuard from './AuthRedirectGuard';
+import LegalConsentEnhancer from './LegalConsentEnhancer';
+import AccessibilityEnhancer from './AccessibilityEnhancer';
+import PersonalityCompassPanel from './PersonalityCompassPanel';
 
 export const metadata = {
   metadataBase: new URL('https://getcompassu.com'),
@@ -16,17 +20,19 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>
+        <a className="skipLink" href="#main-content">Skip to main content</a>
         <AuthRedirectGuard />
+        <LegalConsentEnhancer />
+        <AccessibilityEnhancer />
         {children}
+        <PersonalityCompassPanel />
         <MajorDescriptions />
         <CareerOverviewInjector />
-        <a
-          href="/admin"
-          aria-label="Open CompassU Administrator"
-          style={{position:'fixed',right:18,bottom:18,zIndex:1000,background:'#0f1d40',color:'#fff',padding:'10px 14px',borderRadius:999,fontSize:12,fontWeight:800,boxShadow:'0 8px 24px rgba(15,29,64,.22)',border:'1px solid rgba(255,255,255,.15)'}}
-        >
-          Administrator
-        </a>
+        <footer className="siteFooter" aria-label="CompassU legal links">
+          <a href="/privacy">Privacy Notice</a>
+          <a href="/terms">Terms of Service</a>
+        </footer>
+        <a href="/admin" aria-label="Open CompassU Administrator" className="adminLauncher">Administrator</a>
       </body>
     </html>
   );

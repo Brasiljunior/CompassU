@@ -1,0 +1,20 @@
+.adminAccounts .adminTableWrap {
+  max-height: min(620px, 65vh);
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+}
+
+.adminAccounts .adminTable thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  box-shadow: 0 1px 0 #e7eaf0;
+}
+
+@media (max-width: 700px) {
+  .adminAccounts .adminTableWrap {
+    max-height: 60vh;
+  }
+}
