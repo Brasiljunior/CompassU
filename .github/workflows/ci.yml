@@ -2,9 +2,9 @@ name: CompassU CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, release-candidate-pilot-10k, production-reconciliation-20260917]
   push:
-    branches: [main]
+    branches: [main, release-candidate-pilot-10k, remediation-targeted-regression-tests, production-reconciliation-20260917]
 
 jobs:
   build:
@@ -19,7 +19,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Install dependencies
-        run: npm install
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Require clean dependency audit
+        run: npm audit --audit-level=moderate
+      - name: Run targeted pilot regression tests
+        run: npm run test:pilot
       - name: Build
         run: npm run build
