@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { calculatePersonalityCompass } from './personalityCompass';
 
-const SUPABASE_URL=process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_URL=process.env.NEXT_PUBLIC_SUPABASE_URL||'https://xvvgalifibyqwebasalx.supabase.co';
 const SUPABASE_KEY=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
 export default function PersonalityCompassPanel(){
@@ -15,10 +15,25 @@ export default function PersonalityCompassPanel(){
     const session=JSON.parse(localStorage.getItem('compassu_session')||'null');
     if(!session?.user?.id||!session?.access_token||!SUPABASE_URL||!SUPABASE_KEY)return;
     const headers={apikey:SUPABASE_KEY,Authorization:`Bearer ${session.access_token}`};
-    const attempts=await fetch(`${SUPABASE_URL}/rest/v1/assessment_attempts?user_id=eq.${session.user.id}&status=eq.completed&select=id&order=completed_at.desc&limit=1`,{headers}).then(r=>r.ok?r.json():[]);
+    const attemptsResponse=await fetch(`${SUPABASE_URL}/rest/v1/assessment_attempts?user_id=eq.${session.user.id}&status=eq.completed&select=id&order=completed_at.desc&limit=1`,{headers});
+    if(!attemptsResponse.ok)throw new Error(`Attempt lookup failed (${attemptsResponse.status})`);
+    const attempts=await attemptsResponse.json();
     if(!attempts?.[0]?.id)return;
-    const rows=await fetch(`${SUPABASE_URL}/rest/v1/assessment_responses?attempt_id=eq.${attempts[0].id}&select=response_value,assessment_questions!inner(question_number,dimension)&assessment_questions.dimension=eq.personality`,{headers}).then(r=>r.ok?r.json():[]);
-    const responses=(Array.isArray(rows)?rows:[]).map(r=>({question_number:r.assessment_questions?.question_number,value:r.response_value?.value}));
+
+    // Fetch the personality question IDs independently instead of relying on an
+    // embedded PostgREST relationship. This keeps the results loader reliable
+    // even when relationship aliases/schema-cache behavior differs by environment.
+    const questionsResponse=await fetch(`${SUPABASE_URL}/rest/v1/assessment_questions?question_number=gte.36&question_number=lte.50&select=id,question_number`,{headers});
+    if(!questionsResponse.ok)throw new Error(`Personality question lookup failed (${questionsResponse.status})`);
+    const questions=await questionsResponse.json();
+    if(!Array.isArray(questions)||!questions.length)return;
+    const numberById=new Map(questions.map(q=>[String(q.id),Number(q.question_number)]));
+    const ids=questions.map(q=>q.id).join(',');
+
+    const responsesResponse=await fetch(`${SUPABASE_URL}/rest/v1/assessment_responses?attempt_id=eq.${attempts[0].id}&question_id=in.(${ids})&select=question_id,response_value`,{headers});
+    if(!responsesResponse.ok)throw new Error(`Personality response lookup failed (${responsesResponse.status})`);
+    const rows=await responsesResponse.json();
+    const responses=(Array.isArray(rows)?rows:[]).map(r=>({question_number:numberById.get(String(r.question_id)),value:Number(r.response_value?.value)})).filter(r=>Number.isFinite(r.question_number)&&Number.isFinite(r.value));
     const top=calculatePersonalityCompass(responses);
     if(!cancelled)setTraits(top);
    }catch(error){console.error('Personality Compass could not load',error)}
