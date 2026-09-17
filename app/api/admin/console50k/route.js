@@ -4,7 +4,7 @@ export const runtime='nodejs';
 export const maxDuration=60;
 
 const SUPABASE_URL=process.env.NEXT_PUBLIC_SUPABASE_URL||'https://xvvgalifibyqwebasalx.supabase.co';
-const TARGET=`${SUPABASE_URL}/functions/v1/admin-console-50k`;
+const TARGET=`${SUPABASE_URL}/functions/v1/admin-console`;
 
 export async function POST(request){
   try{
