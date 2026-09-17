@@ -1,5 +1,6 @@
 import { getCareerDescription } from "./careerDescriptions";
 import { drawCompassMark, drawCompassUBrand } from "./pdfBrand";
+import { loadPdfPersonalityCompass, addPersonalityCompassPdfPage } from "./pdfPersonality";
 
 export async function generateCompassUPdf({
   matches = [],
@@ -522,9 +523,10 @@ export async function generateCompassUPdf({
     ...top.map((m, i) => majorImageUrl(m.major_name, i)),
     actionUrl,
   ];
-  const [loadedImages, exp] = await Promise.all([
+  const [loadedImages, exp, personalityTraits] = await Promise.all([
     Promise.all(imageUrls.map(img)),
     explanations(),
+    loadPdfPersonalityCompass(session, traits),
   ]);
   const coverImage = loadedImages[0],
     majorImages = loadedImages.slice(1, 1 + top.length),
@@ -651,6 +653,23 @@ export async function generateCompassUPdf({
     { align: "center" },
   );
   footer(2);
+  const personalityAdded = addPersonalityCompassPdfPage(
+    pdf,
+    personalityTraits,
+    { C, tx, wr, box, line, badge, compass, footer },
+    3,
+  );
+  if (!personalityAdded) {
+    pdf.addPage();
+    tx("YOUR PERSONALITY COMPASS", 14, 18, 17, C.navy, "bold");
+    line(91, 14, 281, 14, C.purple, 0.8);
+    compass(288, 14, 5.5);
+    wr(
+      "Your personality tendencies could not be loaded into this PDF. Return to the results page, confirm Your Personality Compass is visible, and download the report again.",
+      14, 38, 266, 11, C.ink, "normal", 4,
+    );
+    footer(3);
+  }
   pdf.addPage();
   tx(
     sel
@@ -765,7 +784,7 @@ export async function generateCompassUPdf({
     tx("OPENINGS", 270, y + 24, 6.5, C.muted, "bold", { align: "right" });
     y += 28.5;
   });
-  footer(3);
+  footer(4);
   pdf.addPage();
   tx("TURN DIRECTION INTO ACTION", 12, 18, 16.5, C.navy, "bold");
   line(112, 14, 281, 14, C.purple, 0.8);
@@ -848,6 +867,6 @@ export async function generateCompassUPdf({
     4,
   );
   tx("getcompassu.com  →", 198, 189, 10.5, [255, 255, 255], "bold");
-  footer(4);
+  footer(5);
   pdf.save("CompassU-Personalized-Career-Pathway-Results.pdf");
 }
