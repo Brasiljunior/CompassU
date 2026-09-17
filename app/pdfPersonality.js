@@ -2,7 +2,7 @@ import { calculatePersonalityCompass } from './personalityCompass';
 
 export async function loadPdfPersonalityCompass(session){
   try{
-    const url=process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const url=process.env.NEXT_PUBLIC_SUPABASE_URL||'https://xvvgalifibyqwebasalx.supabase.co';
     const key=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
     const token=session?.access_token,uid=session?.user?.id;
     if(!url||!key||!token||!uid)return [];
@@ -21,7 +21,7 @@ export async function loadPdfPersonalityCompass(session){
     if(!rr.ok)return [];
     const rows=await rr.json();
     return calculatePersonalityCompass((rows||[]).map(r=>({question_number:numberById.get(String(r.question_id)),value:Number(r.response_value?.value)})).filter(r=>Number.isFinite(r.question_number)&&Number.isFinite(r.value)));
-  }catch{return []}
+  }catch(error){console.error('Personality Compass PDF data could not load',error);return []}
 }
 
 export function addPersonalityCompassPdfPage(pdf,traits,helpers,pageNumber=3){
