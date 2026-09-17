@@ -2,6 +2,15 @@ import { calculatePersonalityCompass } from './personalityCompass';
 
 export async function loadPdfPersonalityCompass(session){
   try{
+    // The on-screen Personality Compass is the verified student-facing calculation.
+    // Reuse its cached result first so the PDF cannot diverge because of a second
+    // browser-side data request. Fall back to a direct Supabase lookup when needed.
+    if(typeof window!=='undefined'){
+      try{
+        const cached=JSON.parse(localStorage.getItem('compassu_personality_traits')||'null');
+        if(Array.isArray(cached)&&cached.length>=3)return cached.slice(0,3);
+      }catch{}
+    }
     const url=process.env.NEXT_PUBLIC_SUPABASE_URL||'https://xvvgalifibyqwebasalx.supabase.co';
     const key=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
     const token=session?.access_token,uid=session?.user?.id;
@@ -20,7 +29,9 @@ export async function loadPdfPersonalityCompass(session){
     const rr=await fetch(`${url}/rest/v1/assessment_responses?attempt_id=eq.${aid}&question_id=in.(${ids})&select=question_id,response_value`,{headers});
     if(!rr.ok)return [];
     const rows=await rr.json();
-    return calculatePersonalityCompass((rows||[]).map(r=>({question_number:numberById.get(String(r.question_id)),value:Number(r.response_value?.value)})).filter(r=>Number.isFinite(r.question_number)&&Number.isFinite(r.value)));
+    const calculated=calculatePersonalityCompass((rows||[]).map(r=>({question_number:numberById.get(String(r.question_id)),value:Number(r.response_value?.value)})).filter(r=>Number.isFinite(r.question_number)&&Number.isFinite(r.value)));
+    if(typeof window!=='undefined'&&calculated.length>=3){try{localStorage.setItem('compassu_personality_traits',JSON.stringify(calculated));}catch{}}
+    return calculated;
   }catch(error){console.error('Personality Compass PDF data could not load',error);return []}
 }
 
