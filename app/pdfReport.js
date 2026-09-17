@@ -1,6 +1,6 @@
 import { getCareerDescription } from "./careerDescriptions";
 import { drawCompassMark, drawCompassUBrand } from "./pdfBrand";
-import { loadPdfPersonalityCompass, addPersonalityCompassPdfPage } from "./pdfPersonality";
+import { waitForPdfPersonalityCompass, addPersonalityCompassPdfPage } from "./pdfPersonality";
 
 export async function generateCompassUPdf({
   matches = [],
@@ -526,7 +526,7 @@ export async function generateCompassUPdf({
   const [loadedImages, exp, personalityTraits] = await Promise.all([
     Promise.all(imageUrls.map(img)),
     explanations(),
-    loadPdfPersonalityCompass(session, traits),
+    waitForPdfPersonalityCompass(session, traits),
   ]);
   const coverImage = loadedImages[0],
     majorImages = loadedImages.slice(1, 1 + top.length),
