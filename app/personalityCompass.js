@@ -16,8 +16,8 @@ export const PERSONALITY_TRAITS = [
 export function calculatePersonalityCompass(questionResponses=[]){
   const byNumber=new Map(questionResponses.map(r=>[Number(r.question_number),Number(r.value)]));
   return PERSONALITY_TRAITS.map(trait=>{
-    const values=trait.questions.map(q=>byNumber.get(q)).filter(v=>Number.isFinite(v));
-    if(!values.length)return null;
+    const values=trait.questions.map(q=>byNumber.get(q));
+    if(values.some(v=>!Number.isFinite(v)))return null;
     const average=values.reduce((sum,v)=>sum+v,0)/values.length;
     const score=Math.round(((average-1)/4)*100);
     return {...trait,score,average:Number(average.toFixed(2)),indicatorCount:values.length};
