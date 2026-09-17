@@ -49,8 +49,12 @@ export async function loadPdfPersonalityCompass(session,providedTraits=[]){
       }
     }
     const url=process.env.NEXT_PUBLIC_SUPABASE_URL||'https://xvvgalifibyqwebasalx.supabase.co';
-    const key=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-    const token=session?.access_token,uid=session?.user?.id;
+    const key=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY||'sb_publishable_lWtjaYYRk4hd1Bb-yKG3eA_CxF4CW9-';
+    let activeSession=session;
+    if((!activeSession?.access_token||!activeSession?.user?.id)&&typeof window!=='undefined'){
+      try{activeSession=JSON.parse(localStorage.getItem('compassu_session')||'null')||activeSession}catch{}
+    }
+    const token=activeSession?.access_token,uid=activeSession?.user?.id;
     if(!url||!key||!token||!uid)return [];
     const headers={apikey:key,Authorization:`Bearer ${token}`};
     const ar=await fetch(`${url}/rest/v1/assessment_attempts?user_id=eq.${uid}&status=eq.completed&select=id&order=completed_at.desc&limit=1`,{headers});
@@ -69,6 +73,16 @@ export async function loadPdfPersonalityCompass(session,providedTraits=[]){
     const calculated=calculatePersonalityCompass((rows||[]).map(r=>({question_number:numberById.get(String(r.question_id)),value:Number(r.response_value?.value)})).filter(r=>Number.isFinite(r.question_number)&&Number.isFinite(r.value)));
     return cachePdfPersonalityCompass(calculated);
   }catch(error){console.error('Personality Compass PDF data could not load',error);return []}
+}
+
+export async function waitForPdfPersonalityCompass(session,providedTraits=[]){
+  for(let attempt=0;attempt<5;attempt++){
+    const traits=await loadPdfPersonalityCompass(session,providedTraits);
+    if(traits.length>=3)return traits;
+    if(typeof window==='undefined')break;
+    await new Promise(resolve=>setTimeout(resolve,250));
+  }
+  return [];
 }
 
 export function addPersonalityCompassPdfPage(pdf,traits,helpers,pageNumber=3){
