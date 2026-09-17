@@ -3,9 +3,6 @@
 import { useEffect, useState } from 'react';
 import { calculatePersonalityCompass } from './personalityCompass';
 
-// Keep this client-side loader aligned with the same public Supabase configuration
-// used by the main CompassU results page. The publishable key is intentionally
-// public and is protected by Supabase RLS, just like the rest of the browser app.
 const SUPABASE_URL=process.env.NEXT_PUBLIC_SUPABASE_URL||'https://xvvgalifibyqwebasalx.supabase.co';
 const SUPABASE_KEY=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY||'sb_publishable_lWtjaYYRk4hd1Bb-yKG3eA_CxF4CW9-';
 
@@ -33,6 +30,7 @@ export default function PersonalityCompassPanel(){
     const rows=await responsesResponse.json();
     const responses=(Array.isArray(rows)?rows:[]).map(r=>({question_number:numberById.get(String(r.question_id)),value:Number(r.response_value?.value)})).filter(r=>Number.isFinite(r.question_number)&&Number.isFinite(r.value));
     const top=calculatePersonalityCompass(responses);
+    if(top.length>=3){try{localStorage.setItem('compassu_personality_traits',JSON.stringify(top));}catch{}}
     if(!cancelled)setTraits(top);
    }catch(error){console.error('Personality Compass could not load',error)}
   }
