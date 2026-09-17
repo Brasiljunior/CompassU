@@ -1,7 +1,6 @@
 'use client';
 
 import {useEffect} from 'react';
-import {getTypicalCoreCourses,courseReferenceNote} from './majorCourseExamples';
 
 const URL=process.env.NEXT_PUBLIC_SUPABASE_URL;
 const KEY=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -10,7 +9,7 @@ const describe=(name,rows=[])=>{const r=(Array.isArray(rows)?rows:[]).filter(x=>
 
 export default function MajorDescriptions(){
  useEffect(()=>{
-  let stopped=false,timer=null;
+  let stopped=false,timer=null,lastAttempt='';
   const run=async()=>{try{
    const session=JSON.parse(localStorage.getItem('compassu_session')||'null');
    if(!session?.access_token||!session?.user?.id||!URL||!KEY)return;
@@ -22,22 +21,21 @@ export default function MajorDescriptions(){
    const map={};
    await Promise.all(matches.map(async m=>{const name=m.majors?.name;if(!name)return;try{const rows=await fetch(`${URL}/rest/v1/rpc/get_major_explanation`,{method:'POST',headers,body:JSON.stringify({p_attempt_id:aid,p_major_id:m.major_id})}).then(r=>r.json());map[name]=describe(name,rows)}catch{map[name]=describe(name,[])}}));
    if(stopped)return;
+   const normalized=s=>(s||'').replace(/\s+/g,' ').trim().toLowerCase();
    document.querySelectorAll('.match').forEach(card=>{
-    if(card.querySelector('.personalizedMajorDescription'))return;
-    const candidates=[...card.querySelectorAll('b')];
-    const heading=candidates.find(el=>map[el.textContent?.trim()]);
-    if(!heading)return;
-    const text=heading.textContent.trim();
-    const host=heading.parentElement;if(!host)return;
-    const wrap=document.createElement('div');wrap.className='personalizedMajorDescription';Object.assign(wrap.style,{fontSize:'12px',lineHeight:'1.45',color:'#667085',marginTop:'7px',maxWidth:'560px'});
-    const p=document.createElement('div');p.textContent=map[text]||describe(text,[]);wrap.appendChild(p);
-    const label=document.createElement('div');label.textContent='Typical core classes';Object.assign(label.style,{fontWeight:'800',color:'#0f1d40',marginTop:'8px'});wrap.appendChild(label);
-    const courses=document.createElement('div');courses.textContent=getTypicalCoreCourses(text).join(' • ');Object.assign(courses.style,{color:'#475467',marginTop:'3px'});wrap.appendChild(courses);
-    const note=document.createElement('div');note.textContent=courseReferenceNote;Object.assign(note.style,{fontSize:'10px',fontStyle:'italic',color:'#98a2b3',marginTop:'4px'});wrap.appendChild(note);
-    host.appendChild(wrap);
+    const cardText=normalized(card.textContent);
+    const entry=matches.find(m=>m.majors?.name&&cardText.includes(normalized(m.majors.name)));
+    if(!entry)return;
+    const name=entry.majors.name;
+    const old=card.querySelector('.personalizedMajorDescription');if(old)old.remove();
+    const wrap=document.createElement('div');wrap.className='personalizedMajorDescription';wrap.setAttribute('data-attempt',aid);Object.assign(wrap.style,{fontSize:'14px',lineHeight:'1.5',color:'#53657d',marginTop:'8px',marginBottom:'6px',maxWidth:'570px'});
+    const p=document.createElement('div');p.textContent=map[name]||describe(name,[]);wrap.appendChild(p);
+    const link=[...card.querySelectorAll('*')].find(el=>normalized(el.textContent)==='see why it fits, where it can lead, and where you can study it');
+    if(link?.parentElement)link.parentElement.insertBefore(wrap,link);else{const title=[...card.querySelectorAll('b,strong')].find(el=>normalized(el.textContent)===normalized(name));(title?.parentElement||card).appendChild(wrap)}
    });
+   lastAttempt=aid;
   }catch(error){console.error('CompassU major descriptions failed',error)}};
-  const observer=new MutationObserver(()=>{clearTimeout(timer);timer=setTimeout(run,120)});observer.observe(document.body,{childList:true,subtree:true});run();return()=>{stopped=true;clearTimeout(timer);observer.disconnect()};
+  const observer=new MutationObserver(()=>{clearTimeout(timer);timer=setTimeout(run,180)});observer.observe(document.body,{childList:true,subtree:true});run();return()=>{stopped=true;clearTimeout(timer);observer.disconnect()};
  },[]);
  return null;
 }
