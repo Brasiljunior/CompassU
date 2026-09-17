@@ -1,16 +1,35 @@
 import { calculatePersonalityCompass } from './personalityCompass';
 
+function visiblePersonalityCompass(){
+  if(typeof document==='undefined')return [];
+  try{
+    const cards=[...document.querySelectorAll('.personalityTraitCard')];
+    const traits=cards.map((card,index)=>{
+      const name=card.querySelector('h3')?.textContent?.trim();
+      const paragraphs=[...card.querySelectorAll('p')].map(p=>p.textContent?.trim()).filter(Boolean);
+      const description=paragraphs[0];
+      return name&&description?{key:`visible-${index}`,name,description}:null;
+    }).filter(Boolean);
+    return traits.length>=3?traits.slice(0,3):[];
+  }catch{return []}
+}
+
 export async function loadPdfPersonalityCompass(session){
   try{
-    // The on-screen Personality Compass is the verified student-facing calculation.
-    // Reuse its cached result first so the PDF cannot diverge because of a second
-    // browser-side data request. Fall back to a direct Supabase lookup when needed.
+    // First use the Personality Compass already rendered on the results page.
+    // This is the exact student-facing result the user can see before downloading.
+    const visible=visiblePersonalityCompass();
+    if(visible.length>=3)return visible;
+
+    // Then reuse the cached student-facing calculation.
     if(typeof window!=='undefined'){
       try{
         const cached=JSON.parse(localStorage.getItem('compassu_personality_traits')||'null');
         if(Array.isArray(cached)&&cached.length>=3)return cached.slice(0,3);
       }catch{}
     }
+
+    // Final fallback: calculate from the authenticated assessment responses.
     const url=process.env.NEXT_PUBLIC_SUPABASE_URL||'https://xvvgalifibyqwebasalx.supabase.co';
     const key=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
     const token=session?.access_token,uid=session?.user?.id;
