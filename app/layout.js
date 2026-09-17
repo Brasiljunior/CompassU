@@ -6,6 +6,7 @@ import CareerOverviewInjector from './CareerOverviewInjector';
 import AuthRedirectGuard from './AuthRedirectGuard';
 import LegalConsentEnhancer from './LegalConsentEnhancer';
 import AccessibilityEnhancer from './AccessibilityEnhancer';
+import PersonalityCompassPanel from './PersonalityCompassPanel';
 
 export const metadata = {
   metadataBase: new URL('https://getcompassu.com'),
@@ -24,6 +25,7 @@ export default function RootLayout({ children }) {
         <LegalConsentEnhancer />
         <AccessibilityEnhancer />
         {children}
+        <PersonalityCompassPanel />
         <MajorDescriptions />
         <CareerOverviewInjector />
         <footer className="siteFooter" aria-label="CompassU legal links">
