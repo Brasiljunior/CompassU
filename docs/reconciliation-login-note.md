@@ -1,0 +1,1 @@
+Production reconciliation note: preserve the validated feature-branch Supabase 429 login retry/backoff behavior when reconciling app/page.js. This note is temporary release documentation and does not alter runtime behavior.
