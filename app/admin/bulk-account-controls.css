@@ -1,0 +1,11 @@
+.bulkAccountBar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;padding:10px 12px;border:1px solid #fecdca;border-radius:12px;background:#fff8f7}
+.bulkAccountBar span{font-size:13px;font-weight:800;color:#344054}
+.bulkAccountActions{display:flex;align-items:center;gap:8px}
+.bulkAccountActions button{border-radius:8px;padding:7px 10px;font-size:11px;font-weight:800;cursor:pointer}
+.bulkAccountClear{border:1px solid #d7dce5;background:#fff;color:#344054}
+.bulkAccountDelete{border:1px solid #f04438;background:#b42318;color:#fff}
+.bulkAccountActions button:disabled{opacity:.55;cursor:not-allowed}
+.adminTable .accountSelectCell{width:42px;min-width:42px;padding-left:12px;padding-right:4px}
+.adminTable .accountSelectCell input{width:18px;height:18px;margin:0;accent-color:#2f6fed;cursor:pointer}
+.adminTable .accountSelectCell input:disabled{opacity:.35;cursor:not-allowed}
+@media(max-width:700px){.bulkAccountBar{align-items:flex-start;display:block}.bulkAccountActions{margin-top:9px}.bulkAccountActions button{flex:1}}
