@@ -3,21 +3,9 @@
 import { useEffect } from 'react';
 
 const CACHE_KEY='compassu_admin_institutions';
-const cleanHeader=v=>String(v||'').toLowerCase().replace(/[^a-z]/g,'');
 const readSession=()=>{try{return JSON.parse(localStorage.getItem('compassu_session')||'null')}catch{return null}};
 const readCache=()=>{try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'{}')||{}}catch{return{}}};
 const validEmail=v=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v||'').trim());
-
-function institutionFromMapped(mapped){
-  const direct=['institution','school','highschool','highschoolname','schoolname','college','collegename','university','universityname','organization','organizationname'];
-  for(const key of direct){const value=String(mapped?.[key]||'').trim();if(value)return value;}
-  for(const [key,value] of Object.entries(mapped||{})){
-    if(/institution|school|college|university|organization/.test(key)){
-      const text=String(value||'').trim();if(text)return text;
-    }
-  }
-  return '';
-}
 
 export default function Admin50kInstitutionFileSync(){
   useEffect(()=>{
@@ -69,31 +57,14 @@ export default function Admin50kInstitutionFileSync(){
       if(assignments.length)await syncAssignments(assignments,{silent:true});
     };
 
-    const onChange=async event=>{
-      const input=event.target;
-      if(busy||!input?.matches?.('input[type="file"]'))return;
-      if(input.closest?.('.batch500Root'))return;
-      const file=input.files?.[0];if(!file||!/(\.xlsx|\.xls|\.csv)$/i.test(file.name))return;
-      try{
-        const XLSX=await import('xlsx');
-        const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
-        const ws=wb.Sheets[wb.SheetNames[0]];
-        const raw=XLSX.utils.sheet_to_json(ws,{defval:''});
-        const assignments=[];
-        for(const row of raw){
-          const mapped={};Object.entries(row).forEach(([k,v])=>mapped[cleanHeader(k)]=v);
-          const email=String(mapped.email||mapped.emailaddress||mapped.studentemail||'').trim().toLowerCase();
-          const institution=institutionFromMapped(mapped);
-          if(validEmail(email)&&institution)assignments.push({email,institution});
-        }
-        if(!assignments.length){showNotice('No Institution/School column with account associations was found in this file.',true);return;}
-        await syncAssignments(assignments);
-      }catch(error){showNotice(error?.message||'Unable to read institution associations from this file.',true)}
+    const onParsedAssignments=event=>{
+      const assignments=Array.isArray(event?.detail?.assignments)?event.detail.assignments:[];
+      if(assignments.length)syncAssignments(assignments);
     };
 
-    document.addEventListener('change',onChange,true);
+    window.addEventListener('compassu:institution-file-assignments',onParsedAssignments);
     const timer=setTimeout(recoverCachedAssociations,1200);
-    return()=>{clearTimeout(timer);document.removeEventListener('change',onChange,true)};
+    return()=>{clearTimeout(timer);window.removeEventListener('compassu:institution-file-assignments',onParsedAssignments)};
   },[]);
   return null;
 }
