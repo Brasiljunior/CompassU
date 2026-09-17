@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test:pilot": "node --test tests/pilot-critical-regressions.test.mjs"
   },
   "dependencies": {
     "jspdf": "4.2.1",
