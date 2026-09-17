@@ -1,0 +1,67 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+
+const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"};
+const json=(b:any,s=200)=>new Response(JSON.stringify(b),{status:s,headers:{...cors,"Content-Type":"application/json"}});
+const esc=(v:any)=>String(v??'').replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]||c));
+
+Deno.serve(async(req)=>{
+  if(req.method==='OPTIONS')return new Response('ok',{headers:cors});
+  try{
+    const auth=req.headers.get('Authorization');
+    if(!auth)return json({error:'Missing authorization'},401);
+    const url=Deno.env.get('SUPABASE_URL')!;
+    const anon=Deno.env.get('SUPABASE_ANON_KEY')!;
+    const service=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const resend=Deno.env.get('RESEND_API_KEY')!;
+    const app=(Deno.env.get('COMPASSU_APP_URL')||'https://getcompassu.com').replace(/\/$/,'');
+    const sh={apikey:service,Authorization:`Bearer ${service}`,'Content-Type':'application/json'};
+    const ur=await fetch(`${url}/auth/v1/user`,{headers:{apikey:anon,Authorization:auth}});
+    if(!ur.ok)return json({error:'Invalid user session'},401);
+    const me=await ur.json();
+    const ar=await fetch(`${url}/rest/v1/admin_users?user_id=eq.${me.id}&select=user_id,role&limit=1`,{headers:sh});
+    const admins=await ar.json();
+    if(!admins?.length)return json({error:'Administrator access is not enabled for this account.'},403);
+    const body=await req.json().catch(()=>({}));
+    const action=body.action||'overview';
+    const rpc=async(name:string,payload:any={})=>{const r=await fetch(`${url}/rest/v1/rpc/${name}`,{method:'POST',headers:sh,body:JSON.stringify(payload)});const d=await r.json().catch(()=>null);if(!r.ok)throw new Error(d?.message||d?.hint||d?.error||`${name} failed (${r.status})`);return d;};
+    const audit=async(a:string,t:any=null,d:any={})=>fetch(`${url}/rest/v1/admin_audit_log`,{method:'POST',headers:{...sh,Prefer:'return=minimal'},body:JSON.stringify({admin_user_id:me.id,action:a,target_user_id:t,details:d})});
+    const accountIdentity=async(id:string)=>rpc('admin_account_identity_50k',{p_user_id:id});
+    if(action==='overview'||action==='refresh'){
+      const page=Math.max(1,Number(body.page||1)||1),pageSize=Math.min(100,Math.max(1,Number(body.page_size||50)||50));
+      const search=String(body.search||'').trim()||null,institution=String(body.institution||'').trim()||null;
+      const [overview,accounts]=await Promise.all([rpc('admin_dashboard_overview_50k',{}),rpc('admin_account_page_50k',{p_page:page,p_page_size:pageSize,p_search:search,p_institution:institution})]);
+      return json({admin:{role:admins[0].role},stats:overview?.stats||{},trend:overview?.trend||[],users:accounts?.users||[],pagination:accounts?.pagination||{page,page_size:pageSize,total:0,total_pages:1,has_previous:false,has_next:false}});
+    }
+    if(action==='account_page'){
+      const page=Math.max(1,Number(body.page||1)||1),pageSize=Math.min(100,Math.max(1,Number(body.page_size||50)||50));
+      const accounts=await rpc('admin_account_page_50k',{p_page:page,p_page_size:pageSize,p_search:String(body.search||'').trim()||null,p_institution:String(body.institution||'').trim()||null});
+      return json(accounts||{users:[],pagination:{page,page_size:pageSize,total:0,total_pages:1,has_previous:false,has_next:false}});
+    }
+    if(action==='user_detail'){
+      const id=String(body.user_id||'');if(!id)return json({error:'Account id is required.'},400);
+      const identity=await accountIdentity(id);if(!identity?.id)return json({error:'Account not found.'},404);
+      const [profile,attempts]=await Promise.all([fetch(`${url}/rest/v1/profiles?id=eq.${id}&select=id,first_name,last_name,state,created_at&limit=1`,{headers:sh}).then(r=>r.json()),fetch(`${url}/rest/v1/assessment_attempts?user_id=eq.${id}&select=id,status,started_at,completed_at&order=started_at.desc&limit=100`,{headers:sh}).then(r=>r.json())]);
+      return json({user:{...identity,...(profile?.[0]||{})},attempts:Array.isArray(attempts)?attempts:[]});
+    }
+    if(action==='password_reset'){
+      const id=String(body.user_id||''),u=await accountIdentity(id);if(!u?.email)return json({error:'Account email not found'},404);
+      const r=await fetch(`${url}/auth/v1/recover`,{method:'POST',headers:{apikey:anon,'Content-Type':'application/json'},body:JSON.stringify({email:u.email})});if(!r.ok)return json({error:'Unable to send password reset'},r.status);
+      await audit('password_reset',id,{email:u.email});return json({ok:true,message:'Password reset email sent.'});
+    }
+    if(action==='suspend_user'||action==='reactivate_user'){
+      const id=String(body.user_id||'');const r=await fetch(`${url}/auth/v1/admin/users/${id}`,{method:'PUT',headers:sh,body:JSON.stringify({ban_duration:action==='suspend_user'?'876000h':'none'})});if(!r.ok)return json({error:'Unable to update account status'},r.status);await audit(action,id,{});return json({ok:true,message:action==='suspend_user'?'Account suspended.':'Account reactivated.'});
+    }
+    if(action==='delete_users'){
+      const ids=[...new Set((Array.isArray(body.user_ids)?body.user_ids:[]).map((x:any)=>String(x||'')).filter(Boolean))];
+      if(String(body.confirm||'')!=='DELETE')return json({error:'Type DELETE to confirm permanent account removal.'},400);if(!ids.length)return json({error:'Select at least one account.'},400);if(ids.length>100)return json({error:'Each bulk deletion request is limited to 100 accounts.'},400);
+      const adminRows=await fetch(`${url}/rest/v1/admin_users?select=user_id&user_id=in.(${ids.join(',')})`,{headers:sh}).then(r=>r.json());const protectedIds=new Set((Array.isArray(adminRows)?adminRows:[]).map((x:any)=>String(x.user_id)));protectedIds.add(String(me.id));const results:any[]=[];
+      for(const id of ids){let identity:any=null;try{identity=await accountIdentity(id)}catch{}if(protectedIds.has(id)){results.push({user_id:id,email:identity?.email||'',status:'Failed',message:'Administrator accounts cannot be removed through bulk deletion.'});continue}try{const r=await fetch(`${url}/auth/v1/admin/users/${id}`,{method:'DELETE',headers:sh});if(!r.ok){const d=await r.json().catch(()=>({}));results.push({user_id:id,email:identity?.email||'',status:'Failed',message:d?.message||'Unable to remove account.'});continue}await audit('delete_user',id,{bulk:true});results.push({user_id:id,email:identity?.email||'',status:'Deleted',message:'Account permanently removed.'});}catch(e){results.push({user_id:id,email:identity?.email||'',status:'Failed',message:String((e as any)?.message||e)})}}
+      return json({ok:true,results,summary:{requested:ids.length,deleted:results.filter((x:any)=>x.status==='Deleted').length,failed:results.filter((x:any)=>x.status==='Failed').length}});
+    }
+    if(action==='delete_user'){
+      const id=String(body.user_id||'');if(String(body.confirm||'')!=='DELETE')return json({error:'Type DELETE to confirm permanent account removal.'},400);const r=await fetch(`${url}/auth/v1/admin/users/${id}`,{method:'DELETE',headers:sh});if(!r.ok)return json({error:'Unable to remove account'},r.status);await audit('delete_user',id,{});return json({ok:true,message:'Account permanently removed.'});
+    }
+    if(action==='audit_log'){const rows=await fetch(`${url}/rest/v1/admin_audit_log?select=id,action,target_user_id,details,created_at&order=created_at.desc&limit=100`,{headers:sh}).then(r=>r.json());return json({rows:Array.isArray(rows)?rows:[]});}
+    return json({error:'Unknown administrator action'},400);
+  }catch(e){return json({error:String((e as any)?.message||e)},500);}
+});
