@@ -1,5 +1,14 @@
 import { calculatePersonalityCompass } from './personalityCompass';
 
+function normalizeTraits(traits){
+  if(!Array.isArray(traits))return [];
+  return traits.map((trait,index)=>{
+    const name=trait?.name||trait?.trait_name;
+    const description=trait?.description||trait?.trait_description;
+    return name&&description?{...trait,key:trait?.key||`trait-${index}`,name,description}:null;
+  }).filter(Boolean).slice(0,3);
+}
+
 function visiblePersonalityCompass(){
   if(typeof document==='undefined')return [];
   try{
@@ -14,19 +23,35 @@ function visiblePersonalityCompass(){
   }catch{return []}
 }
 
-export async function loadPdfPersonalityCompass(session){
-  try{
-    // First use the Personality Compass already rendered on the results page.
-    // This is the exact student-facing result the user can see before downloading.
-    const visible=visiblePersonalityCompass();
-    if(visible.length>=3)return visible;
+export function cachePdfPersonalityCompass(traits){
+  const normalized=normalizeTraits(traits);
+  if(typeof window!=='undefined'&&normalized.length>=3){
+    try{
+      localStorage.setItem('compassu_personality_traits',JSON.stringify(normalized));
+      sessionStorage.setItem('compassu_personality_traits',JSON.stringify(normalized));
+    }catch{}
+  }
+  return normalized;
+}
 
-    // Then reuse the cached student-facing calculation.
+export async function loadPdfPersonalityCompass(session,providedTraits=[]){
+  try{
+    // Most reliable path on mobile: use traits already held by the results experience.
+    const provided=normalizeTraits(providedTraits);
+    if(provided.length>=3)return cachePdfPersonalityCompass(provided);
+
+    // Next use the Personality Compass already rendered on the results page.
+    const visible=visiblePersonalityCompass();
+    if(visible.length>=3)return cachePdfPersonalityCompass(visible);
+
+    // Reuse either session or persistent browser cache. iOS can evict one independently.
     if(typeof window!=='undefined'){
-      try{
-        const cached=JSON.parse(localStorage.getItem('compassu_personality_traits')||'null');
-        if(Array.isArray(cached)&&cached.length>=3)return cached.slice(0,3);
-      }catch{}
+      for(const storage of [sessionStorage,localStorage]){
+        try{
+          const cached=normalizeTraits(JSON.parse(storage.getItem('compassu_personality_traits')||'null'));
+          if(cached.length>=3)return cached;
+        }catch{}
+      }
     }
 
     // Final fallback: calculate from the authenticated assessment responses.
@@ -49,20 +74,20 @@ export async function loadPdfPersonalityCompass(session){
     if(!rr.ok)return [];
     const rows=await rr.json();
     const calculated=calculatePersonalityCompass((rows||[]).map(r=>({question_number:numberById.get(String(r.question_id)),value:Number(r.response_value?.value)})).filter(r=>Number.isFinite(r.question_number)&&Number.isFinite(r.value)));
-    if(typeof window!=='undefined'&&calculated.length>=3){try{localStorage.setItem('compassu_personality_traits',JSON.stringify(calculated));}catch{}}
-    return calculated;
+    return cachePdfPersonalityCompass(calculated);
   }catch(error){console.error('Personality Compass PDF data could not load',error);return []}
 }
 
 export function addPersonalityCompassPdfPage(pdf,traits,helpers,pageNumber=3){
-  if(!Array.isArray(traits)||!traits.length)return false;
+  const normalized=normalizeTraits(traits);
+  if(normalized.length<3)return false;
   const {C,tx,wr,box,line,badge,compass,footer}=helpers;
   pdf.addPage();
   tx('YOUR PERSONALITY COMPASS',14,18,17,C.navy,'bold');
   line(91,14,281,14,C.purple,.8);compass(288,14,5.5);
   wr('Based on your CompassU responses, these are three personality tendencies that stand out most strongly. They describe patterns in how you may prefer to work, learn, communicate, and approach decisions—not fixed labels or a clinical personality assessment.',14,29,266,9.5,C.ink,'normal',4);
   const colors=[C.purple,C.blue,C.green];
-  traits.slice(0,3).forEach((trait,i)=>{
+  normalized.forEach((trait,i)=>{
     const x=14+i*91;
     box(x,52,83,116,i===0?C.lav:[255,255,255],5);
     badge(x+12,67,7,colors[i],String(i+1));
