@@ -26,9 +26,13 @@ begin
   if p_status not in ('scheduled','generating','sent','failed','skipped') then
     raise exception 'Invalid delivery status';
   end if;
-  select coalesce(max(attempt_number),0)+1 into v_attempt
+
+  select coalesce(max(attempt_number),0)+1
+    into v_attempt
   from public.institution_report_delivery_log
-  where institution=p_institution and reporting_period_start=p_reporting_period_start;
+  where institution=p_institution
+    and reporting_period_start=p_reporting_period_start;
+
   insert into public.institution_report_delivery_log(
     reporting_profile_id,institution,reporting_period_start,reporting_period_end,
     recipient_emails,status,attempt_number,provider_message_id,error_message,
@@ -39,10 +43,13 @@ begin
     case when p_status in ('sent','failed') then now() else null end,
     case when p_status='sent' then now() else null end
   ) returning * into v_row;
+
   return v_row;
 end;
 $$;
+
 revoke all on function public.record_monthly_report_delivery(uuid,text,date,date,text[],text,text,text) from public;
 grant execute on function public.record_monthly_report_delivery(uuid,text,date,date,text[],text,text,text) to authenticated;
+
 comment on function public.record_monthly_report_delivery(uuid,text,date,date,text[],text,text,text) is
   'Stage 2E Master Administrator RPC for recording monthly institutional report delivery attempts.';
