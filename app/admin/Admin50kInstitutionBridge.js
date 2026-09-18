@@ -36,8 +36,8 @@ export default function Admin50kInstitutionBridge(){
         });
       }
       const markup='<option value="">All institutions</option>'+institutions.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
-      if(select.innerHTML!==markup)select.innerHTML=markup;
       const state=readState();
+      if(select.innerHTML!==markup)select.innerHTML=markup;
       select.value=institutions.includes(state.institution)?state.institution:'';
     };
 
