@@ -90,8 +90,14 @@ Deno.serve(async(req)=>{
     }
 
     if(action==='institution_list'){
-      const rows=await fetch(`${url}/rest/v1/account_institutions?select=institution&institution=not.is.null&order=institution.asc&limit=50000`,{headers:sh}).then(async r=>{if(!r.ok)throw new Error(await r.text());return r.json()});
-      const institutions=[...new Set((Array.isArray(rows)?rows:[]).map(row=>String(row?.institution||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+      const rows:any[]=[];
+      for(let offset=0;offset<50000;offset+=1000){
+        const batch=await fetch(`${url}/rest/v1/account_institutions?select=institution&institution=not.is.null&order=institution.asc&limit=1000&offset=${offset}`,{headers:sh}).then(async r=>{if(!r.ok)throw new Error(await r.text());return r.json()});
+        if(!Array.isArray(batch)||!batch.length)break;
+        rows.push(...batch);
+        if(batch.length<1000)break;
+      }
+      const institutions=[...new Set(rows.map(row=>String(row?.institution||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
       return json({institutions});
     }
 
