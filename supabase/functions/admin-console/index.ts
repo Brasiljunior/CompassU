@@ -75,6 +75,12 @@ Deno.serve(async(req)=>{
       return json({admin:{role:admins[0].role},stats:overview?.stats||{},trend:overview?.trend||[],users:accounts?.users||[],pagination:accounts?.pagination||{page,page_size:pageSize,total:0,total_pages:1,has_previous:false,has_next:false}});
     }
 
+    if(action==='institution_list'){
+      const rows=await fetch(`${url}/rest/v1/account_institutions?select=institution&institution=not.is.null&order=institution.asc&limit=50000`,{headers:sh}).then(async r=>{if(!r.ok)throw new Error(await r.text());return r.json()});
+      const institutions=[...new Set((Array.isArray(rows)?rows:[]).map(row=>String(row?.institution||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+      return json({institutions});
+    }
+
     if(action==='account_page'){
       const page=Math.max(1,Number(body.page||1)||1);
       const pageSize=Math.min(100,Math.max(1,Number(body.page_size||50)||50));
