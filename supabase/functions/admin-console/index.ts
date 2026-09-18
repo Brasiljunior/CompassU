@@ -85,7 +85,7 @@ Deno.serve(async(req)=>{
         totalPages=Math.max(1,Number(accounts?.pagination?.total_pages||1));page+=1;
       }while(page<=totalPages&&page<=500);
       const q=(v:any)=>`"${String(v??'').replaceAll('"','""')}"`;
-      const csv=[['First Name','Last Name','Email','Created','Last Sign In','Survey Status','Access'],...rows.map((u:any)=>[u.first_name||'',u.last_name||'',u.email||'',u.created_at||'',u.last_sign_in_at||'',Number(u.completed_surveys||0)>0?`${u.completed_surveys} completed`:Number(u.in_progress_surveys||0)>0?'In progress':'Not completed',u.is_suspended?'Suspended':'Active'])].map(row=>row.map(q).join(',')).join('\\n');
+      const csv=[['First Name','Last Name','Email','Created','Last Sign In','Survey Status','Access'],...rows.map((u:any)=>[u.first_name||'',u.last_name||'',u.email||'',u.created_at||'',u.last_sign_in_at||'',Number(u.completed_surveys||0)>0?`${u.completed_surveys} completed`:Number(u.in_progress_surveys||0)>0?'In progress':'Not completed',u.is_suspended?'Suspended':'Active'])].map(row=>row.map(q).join(',')).join('\n');
       return new Response('\ufeff'+csv,{status:200,headers:{...cors,'Content-Type':'text/csv; charset=utf-8','Content-Disposition':'attachment; filename="CompassU-Admin-Accounts.csv"'}});
     }
 
