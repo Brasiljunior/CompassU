@@ -126,7 +126,7 @@ export default function AdminInstitutionEnhancer(){
       return true;
     }
 
-    function getEmailForRow(row){return row.querySelector('td:first-child span')?.textContent?.trim().toLowerCase()||''}
+    function getEmailForRow(row){return row.dataset.compassuAccountEmail||row.querySelector('[data-compassu-canonical-cell="email"]')?.textContent?.trim().toLowerCase()||row.querySelector('td:nth-child(2) span')?.textContent?.trim().toLowerCase()||''}
     function getInstitutionForRow(row){
       const email=getEmailForRow(row);
       const user=overviewUsers.find(u=>String(u.email||'').toLowerCase()===email);
@@ -141,7 +141,7 @@ export default function AdminInstitutionEnhancer(){
       closeEditModal();
       const email=getEmailForRow(row);if(!email)return;
       const user=overviewUsers.find(u=>String(u.email||'').toLowerCase()===email)||{};
-      const displayName=[user.first_name,user.last_name].filter(Boolean).join(' ')||row.querySelector('td:first-child b')?.textContent?.trim()||'Account';
+      const displayName=[user.first_name,user.last_name].filter(Boolean).join(' ')||row.querySelector('[data-compassu-canonical-cell="first-name"]')?.textContent?.trim()||'Account';
       const currentInstitution=normalize(user.institution||institutionCache[email]);
       const backdrop=document.createElement('div');backdrop.id='compassu-account-edit-modal';backdrop.className='adminModalBackdrop';
       const modal=document.createElement('div');modal.className='adminModal';
@@ -160,10 +160,13 @@ export default function AdminInstitutionEnhancer(){
     function enhanceTable(){
       const table=document.querySelector('.adminTable');if(!table)return false;let changed=false;
       const headerRow=table.querySelector('thead tr'),firstHeader=headerRow?.querySelector('th');
-      if(firstHeader&&!headerRow.querySelector('[data-compassu-institution-head]')){const th=document.createElement('th');th.textContent='Institution';th.dataset.compassuInstitutionHead='1';firstHeader.insertAdjacentElement('afterend',th);changed=true}
+      const canonicalInstitutionHead=headerRow?.querySelector('[data-compassu-canonical-head="institution"]');
+      if(canonicalInstitutionHead)canonicalInstitutionHead.dataset.compassuInstitutionHead='1';
+      else if(firstHeader&&!headerRow.querySelector('[data-compassu-institution-head]')){const th=document.createElement('th');th.textContent='Institution';th.dataset.compassuInstitutionHead='1';firstHeader.insertAdjacentElement('afterend',th);changed=true}
       table.querySelectorAll('tbody tr').forEach(row=>{
-        const firstCell=row.querySelector('td');let td=row.querySelector('[data-compassu-institution-cell]');
-        if(firstCell&&!td){td=document.createElement('td');td.dataset.compassuInstitutionCell='1';firstCell.insertAdjacentElement('afterend',td);changed=true}
+        const firstCell=row.querySelector('td');let td=row.querySelector('[data-compassu-institution-cell]')||row.querySelector('[data-compassu-canonical-cell="institution"]');
+        if(td)td.dataset.compassuInstitutionCell='1';
+        else if(firstCell){td=document.createElement('td');td.dataset.compassuInstitutionCell='1';firstCell.insertAdjacentElement('afterend',td);changed=true}
         if(td){const nextValue=getInstitutionForRow(row);if(td.textContent!==nextValue){td.textContent=nextValue;changed=true}}
         const actions=row.querySelector('.adminRowActions');
         if(actions&&!actions.querySelector('[data-compassu-edit-account]')){const edit=document.createElement('button');edit.type='button';edit.textContent='Edit';edit.dataset.compassuEditAccount='1';edit.addEventListener('click',()=>openEditModal(row));actions.insertAdjacentElement('afterbegin',edit);changed=true}
