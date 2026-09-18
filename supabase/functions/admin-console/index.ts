@@ -75,6 +75,20 @@ Deno.serve(async(req)=>{
       return json({admin:{role:admins[0].role},stats:overview?.stats||{},trend:overview?.trend||[],users:accounts?.users||[],pagination:accounts?.pagination||{page,page_size:pageSize,total:0,total_pages:1,has_previous:false,has_next:false}});
     }
 
+    if(action==='export_accounts'){
+      const search=String(body.search||'').trim()||null;
+      const institution=String(body.institution||'').trim()||null;
+      const rows:any[]=[];let page=1,totalPages=1;
+      do{
+        const accounts=await rpc('admin_account_page_50k',{p_page:page,p_page_size:100,p_search:search,p_institution:institution});
+        rows.push(...(Array.isArray(accounts?.users)?accounts.users:[]));
+        totalPages=Math.max(1,Number(accounts?.pagination?.total_pages||1));page+=1;
+      }while(page<=totalPages&&page<=500);
+      const q=(v:any)=>`"${String(v??'').replaceAll('"','""')}"`;
+      const csv=[['First Name','Last Name','Email','Created','Last Sign In','Survey Status','Access'],...rows.map((u:any)=>[u.first_name||'',u.last_name||'',u.email||'',u.created_at||'',u.last_sign_in_at||'',Number(u.completed_surveys||0)>0?`${u.completed_surveys} completed`:Number(u.in_progress_surveys||0)>0?'In progress':'Not completed',u.is_suspended?'Suspended':'Active'])].map(row=>row.map(q).join(',')).join('\\n');
+      return new Response('\ufeff'+csv,{status:200,headers:{...cors,'Content-Type':'text/csv; charset=utf-8','Content-Disposition':'attachment; filename="CompassU-Admin-Accounts.csv"'}});
+    }
+
     if(action==='institution_list'){
       const rows=await fetch(`${url}/rest/v1/account_institutions?select=institution&institution=not.is.null&order=institution.asc&limit=50000`,{headers:sh}).then(async r=>{if(!r.ok)throw new Error(await r.text());return r.json()});
       const institutions=[...new Set((Array.isArray(rows)?rows:[]).map(row=>String(row?.institution||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
