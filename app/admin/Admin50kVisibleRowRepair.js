@@ -44,8 +44,8 @@ export default function Admin50kVisibleRowRepair(){
     function renderRow(row,user){
       if(!row||!user)return;
       const cells=[...row.querySelectorAll(':scope > td')];
-      if(cells.length<7)return;
-      const selectCell=cells.find(td=>td.classList.contains('accountSelectCell'))||cells[0];
+      if(cells.length<6)return;
+      const selectCell=cells.find(td=>td.classList.contains('accountSelectCell'))||null;
       let created=cells.find(td=>td.dataset.compassuOriginal==='created');
       let lastSignIn=cells.find(td=>td.dataset.compassuOriginal==='last-sign-in');
       let survey=cells.find(td=>td.dataset.compassuOriginal==='survey-status');
@@ -59,7 +59,7 @@ export default function Admin50kVisibleRowRepair(){
       }
       if(!created||!lastSignIn||!survey||!access||!actions)return;
       while(row.firstChild)row.removeChild(row.firstChild);
-      row.appendChild(selectCell);row.appendChild(canonicalCell(user.institution,'institution'));row.appendChild(canonicalCell(user.first_name,'first-name'));row.appendChild(canonicalCell(user.last_name,'last-name'));row.appendChild(canonicalCell(String(user.email||'').toLowerCase(),'email'));row.appendChild(created);row.appendChild(lastSignIn);row.appendChild(survey);row.appendChild(access);row.appendChild(actions);
+      if(selectCell)row.appendChild(selectCell);row.appendChild(canonicalCell(user.institution,'institution'));row.appendChild(canonicalCell(user.first_name,'first-name'));row.appendChild(canonicalCell(user.last_name,'last-name'));row.appendChild(canonicalCell(String(user.email||'').toLowerCase(),'email'));row.appendChild(created);row.appendChild(lastSignIn);row.appendChild(survey);row.appendChild(access);row.appendChild(actions);
       row.dataset.compassuAccountEmail=String(user.email||'').toLowerCase();row.dataset.compassuCanonical50k='1';
     }
 
