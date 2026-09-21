@@ -51,7 +51,7 @@ export async function GET(request) {
     url.searchParams.set("email", `eq.${email}`);
     url.searchParams.set(
       "select",
-      "institution,institution_type,catalog_institution_id,tenant_institutions(catalog_institution_id)",
+      "institution,institution_type,catalog_institution_id",
     );
     url.searchParams.set("limit", "1");
     const associationResponse = await fetch(url, {
@@ -81,14 +81,12 @@ export async function GET(request) {
         institution_id: null,
       });
 
-    let institutionId =
-      association.catalog_institution_id ||
-      association.tenant_institutions?.catalog_institution_id ||
-      null;
+    let institutionId = association.catalog_institution_id || null;
+    let institutionWebsite = null;
     if (!institutionId && association.institution) {
       const catalogUrl = new URL(`${SUPABASE_URL}/rest/v1/institutions`);
       catalogUrl.searchParams.set("name", `eq.${association.institution}`);
-      catalogUrl.searchParams.set("select", "id,name");
+      catalogUrl.searchParams.set("select", "id,name,website");
       catalogUrl.searchParams.set("limit", "2");
       const catalogResponse = await fetch(catalogUrl, {
         headers: serviceHeaders(),
@@ -99,8 +97,23 @@ export async function GET(request) {
         catalogResponse.ok &&
         Array.isArray(catalogRows) &&
         catalogRows.length === 1
-      )
+      ) {
         institutionId = catalogRows[0].id;
+        institutionWebsite = catalogRows[0].website || null;
+      }
+    }
+    if (institutionId && !institutionWebsite) {
+      const websiteUrl = new URL(SUPABASE_URL + "/rest/v1/institutions");
+      websiteUrl.searchParams.set("id", "eq." + institutionId);
+      websiteUrl.searchParams.set("select", "website");
+      websiteUrl.searchParams.set("limit", "1");
+      const websiteResponse = await fetch(websiteUrl, {
+        headers: serviceHeaders(),
+        cache: "no-store",
+      });
+      const websiteRows = await readJson(websiteResponse);
+      if (websiteResponse.ok && Array.isArray(websiteRows))
+        institutionWebsite = websiteRows[0]?.website || null;
     }
 
     return NextResponse.json({
@@ -108,6 +121,7 @@ export async function GET(request) {
       institution_type: institutionType,
       institution: association.institution,
       institution_id: institutionId,
+      institution_website: institutionWebsite,
       configured: Boolean(institutionId),
     });
   } catch (error) {
