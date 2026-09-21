@@ -418,7 +418,49 @@ export default function Home() {
             }).then((r) => r.json())
           : Promise.resolve([]),
       ]);
-      setCareers(Array.isArray(careerRows) ? careerRows : []);
+      let resolvedCareerRows = Array.isArray(careerRows) ? careerRows : [];
+      if (resolvedCareerRows.length < 3) {
+        try {
+          const majorDetail = await fetch(
+            `${SUPABASE_URL}/rest/v1/majors?id=eq.${major.major_id}&select=cip_code&limit=1`,
+            { headers },
+          ).then((r) => r.json());
+          const cipCode = majorDetail?.[0]?.cip_code;
+          const cipFamily = cipCode ? String(cipCode).split(".").slice(0, 2).join(".").slice(0, 5) : null;
+          if (cipFamily) {
+            const familyMajors = await fetch(
+              `${SUPABASE_URL}/rest/v1/majors?cip_code=like.${cipFamily}*&select=id,name,cip_code&limit=50`,
+              { headers },
+            ).then((r) => r.json());
+            const relatedIds = (Array.isArray(familyMajors) ? familyMajors : [])
+              .map((row) => row.id)
+              .filter((id) => Number(id) !== Number(major.major_id));
+            if (relatedIds.length) {
+              const relatedRows = await fetch(
+                `${SUPABASE_URL}/rest/v1/major_occupations?major_id=in.(${relatedIds.join(",")})&select=major_id,relevance_weight,occupations(id,name,soc_code,median_salary,salary_year,outlook_percent,typical_education,annual_openings,projection_start_year,projection_end_year,work_experience,on_the_job_training)&order=relevance_weight.desc&limit=24`,
+                { headers },
+              ).then((r) => r.json());
+              const seen = new Set(
+                resolvedCareerRows
+                  .map((row) => row?.occupations?.id)
+                  .filter(Boolean),
+              );
+              const supplemental = [];
+              for (const row of Array.isArray(relatedRows) ? relatedRows : []) {
+                const occupationId = row?.occupations?.id;
+                if (!occupationId || seen.has(occupationId)) continue;
+                seen.add(occupationId);
+                supplemental.push({ ...row, related_pathway: true });
+                if (resolvedCareerRows.length + supplemental.length >= 8) break;
+              }
+              resolvedCareerRows = [...resolvedCareerRows, ...supplemental];
+            }
+          }
+        } catch (error) {
+          console.error("Unable to load related career pathways", error);
+        }
+      }
+      setCareers(resolvedCareerRows);
       setColleges(Array.isArray(collegeRows) ? collegeRows : []);
       setTraits(Array.isArray(traitRows) ? traitRows : []);
       setStateFilter("ALL");
@@ -915,6 +957,20 @@ export default function Home() {
                       This alignment reflects the traits most important to this
                       field—not just a broad career category.
                     </p>
+                    {traits.length > 0 && (
+                      <p className="small">
+                        Your strongest measured alignment signals for this path are{" "}
+                        {traits
+                          .slice(0, 3)
+                          .map(
+                            (t) =>
+                              `${t.trait_name} (${Number(t.user_score).toFixed(0)}%)`,
+                          )
+                          .join(", ")}
+                        . These are the assessment dimensions contributing most
+                        strongly to this recommendation.
+                      </p>
+                    )}
                     <div className="traitList">
                       {traits.slice(0, 6).map((t) => (
                         <div className="trait" key={t.trait_code}>
@@ -971,6 +1027,11 @@ export default function Home() {
                             <div className="topbar">
                               <div>
                                 <b>{o.name}</b>
+                                {row.related_pathway && (
+                                  <span className="small muted">
+                                    {" "}· Related career pathway
+                                  </span>
+                                )}
                                 <div className="small muted">
                                   {money(o.median_salary)} median pay
                                   {o.outlook_percent != null
