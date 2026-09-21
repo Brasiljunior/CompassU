@@ -65,7 +65,6 @@ export default function AdminInstitutionEnhancer() {
     let individualInstitutionType = "high_school";
     let batchInstitutionByEmail = {};
     let batchInstitutionTypeByEmail = {};
-    let filterValue = "";
     let scheduled = false;
     let loadedToken = "";
 
@@ -370,15 +369,6 @@ export default function AdminInstitutionEnhancer() {
       ].sort((a, b) => a.localeCompare(b));
     }
 
-    function applyFilter() {
-      document.querySelectorAll(".adminTable tbody tr").forEach((row) => {
-        const institution = normalize(
-          row.querySelector("[data-compassu-institution-cell]")?.textContent,
-        );
-        row.style.display =
-          !filterValue || institution === filterValue ? "" : "none";
-      });
-    }
     function closeEditModal() {
       document.getElementById("compassu-account-edit-modal")?.remove();
     }
@@ -621,55 +611,11 @@ export default function AdminInstitutionEnhancer() {
           changed = true;
         }
       });
-      applyFilter();
-      return changed;
-    }
-
-    function enhanceFilter() {
-      const actions = document.querySelector(
-        ".adminAccounts .adminPanelActions",
-      );
-      if (!actions) return false;
-      let changed = false;
-      let select = document.getElementById("compassu-institution-filter");
-      if (!select) {
-        select = document.createElement("select");
-        select.id = "compassu-institution-filter";
-        select.className = "adminSearch";
-        select.setAttribute("aria-label", "Filter accounts by institution");
-        select.style.minWidth = "210px";
-        select.addEventListener("change", () => {
-          filterValue = select.value;
-          applyFilter();
-        });
-        actions.insertAdjacentElement("afterbegin", select);
-        changed = true;
-      }
-      const institutions = allInstitutions(),
-        optionMarkup =
-          '<option value="">All institutions</option>' +
-          institutions
-            .map(
-              (v) =>
-                `<option value="${htmlEscape(v)}">${htmlEscape(v)}</option>`,
-            )
-            .join("");
-      if (select.innerHTML !== optionMarkup) {
-        const previous = filterValue;
-        select.innerHTML = optionMarkup;
-        if (institutions.includes(previous)) select.value = previous;
-        else {
-          filterValue = "";
-          select.value = "";
-        }
-        changed = true;
-      }
       return changed;
     }
 
     function enhanceDashboard() {
       enhanceInvitePanel();
-      enhanceFilter();
       enhanceTable();
     }
     function scheduleEnhance() {
