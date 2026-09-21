@@ -386,13 +386,27 @@ export default function AdminInstitutionEnhancer() {
     async function openEditModal(row) {
       closeEditModal();
       const email = getEmailForRow(row);
-      if (!email) return;
+      if (!email) {
+        window.alert("CompassU could not identify this account. Refresh the dashboard and try again.");
+        return;
+      }
       const user =
         overviewUsers.find(
           (u) => String(u.email || "").toLowerCase() === email,
         ) || {};
       const session = readSession();
-      if (!session?.access_token || !user?.id) return;
+      if (!session?.access_token) {
+        window.alert("Your administrator session has expired. Sign in again to edit this account.");
+        return;
+      }
+      const loadingBackdrop = document.createElement("div");
+      loadingBackdrop.id = "compassu-account-edit-modal";
+      loadingBackdrop.className = "adminModalBackdrop";
+      loadingBackdrop.innerHTML = `<div class="adminModal"><div class="adminPanelHead"><div><div class="adminKicker">EDIT ACCOUNT INFORMATION</div><h2>Loading account…</h2><p>${htmlEscape(email)}</p></div><button class="btn ghost" type="button" data-edit-close>Close</button></div></div>`;
+      document.body.appendChild(loadingBackdrop);
+      loadingBackdrop
+        .querySelector("[data-edit-close]")
+        .addEventListener("click", closeEditModal);
       let account;
       try {
         const response = await originalFetch("/api/admin/account-update", {
@@ -401,7 +415,11 @@ export default function AdminInstitutionEnhancer() {
             Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ action: "load", user_id: user.id }),
+          body: JSON.stringify({
+            action: "load",
+            user_id: user.id || user.user_id || "",
+            email,
+          }),
         });
         const body = await response.json();
         if (!response.ok)
@@ -409,8 +427,12 @@ export default function AdminInstitutionEnhancer() {
         account = body.account;
       } catch (error) {
         console.error("CompassU account editor could not load", error);
+        loadingBackdrop.querySelector("h2").textContent = "Unable to open account";
+        loadingBackdrop.querySelector("p").textContent =
+          error?.message || "Please refresh the dashboard and try again.";
         return;
       }
+      closeEditModal();
       const displayName =
         [account.first_name, account.last_name].filter(Boolean).join(" ") ||
         account.email ||
@@ -443,7 +465,7 @@ export default function AdminInstitutionEnhancer() {
           try {
             const payload = {
               action: "update",
-              user_id: user.id,
+              user_id: account.id,
               first_name: modal.querySelector("#compassu-edit-first-name")
                 .value,
               last_name: modal.querySelector("#compassu-edit-last-name").value,
