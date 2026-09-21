@@ -1094,16 +1094,39 @@ export default function Home() {
                       : "Turn direction into destination. Filter between community colleges and four-year colleges and universities, then select an institution to visit its website. IPEDS evidence shows institutions that recently awarded credentials in this program."}
                   </div>
                   {filteredColleges.length === 0 ? (
-                    <div className="muted small collegeEmpty">
-                      {recommendationScope.configuration_error
-                        ? "Your institution settings could not be verified. College recommendations are hidden until the settings are available."
-                        : recommendationScope.mode === "home_institution" &&
-                            !recommendationScope.configured
-                          ? "Your home institution is not yet linked to the CompassU college catalog. Ask your CompassU administrator to complete the institution mapping."
-                          : recommendationScope.mode === "home_institution"
-                            ? `${recommendationScope.institution || "Your home institution"} does not appear to offer this program in the current IPEDS evidence.`
-                            : "No institutions in this category appear in the current program evidence. Try All colleges or another state."}
-                    </div>
+                    recommendationScope.mode === "home_institution" &&
+                    recommendationScope.institution_website ? (
+                      <div className="college">
+                        <div>
+                          <div className="collegeNameRow">
+                            <b>{recommendationScope.institution || "Your Home Institution"}</b>
+                            <span className="collegeTypeTag">Home Institution</span>
+                          </div>
+                          <div className="small muted">
+                            Your CompassU account is associated with this institution.
+                          </div>
+                          <a
+                            className="collegeLink"
+                            href={normalizeWebsite(recommendationScope.institution_website)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Visit home institution website ↗
+                          </a>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="muted small collegeEmpty">
+                        {recommendationScope.configuration_error
+                          ? "Your home institution is temporarily unavailable."
+                          : recommendationScope.mode === "home_institution" &&
+                              !recommendationScope.configured
+                            ? "Your home institution is not yet linked to the CompassU college catalog."
+                            : recommendationScope.mode === "home_institution"
+                              ? `${recommendationScope.institution || "Your home institution"} does not appear to offer this program in the current IPEDS evidence.`
+                              : "No institutions in this category appear in the current program evidence. Try All colleges or another state."}
+                      </div>
+                    )
                   ) : (
                     filteredColleges.slice(0, 12).map((row) => {
                       const inst = row.institutions || {},
