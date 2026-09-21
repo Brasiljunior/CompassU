@@ -15,6 +15,7 @@ import Admin50kPagingEnhancer from './Admin50kPagingEnhancer';
 import Admin50kOperationsEnhancer from './Admin50kOperationsEnhancer';
 import Admin50kInstitutionFileSync from './Admin50kInstitutionFileSync';
 import Admin50kInstitutionBridge from './Admin50kInstitutionBridge';
+import AdminInstitutionEnhancer from './AdminInstitutionEnhancer';
 import AdminActivityTrendRepair from './AdminActivityTrendRepair';
 import AdminAnalyticsPanel from './AdminAnalyticsPanel';
 import AdminTrendAnalyticsPanel from './AdminTrendAnalyticsPanel';
@@ -26,4 +27,4 @@ import AdminAccessibilityEnhancer from './AdminAccessibilityEnhancer';
 
 export const metadata={title:'CompassU Administrator | Control Center',description:'Secure CompassU administrator dashboard.'};
 
-export default function AdminLayout({children}){return <AdminMfaGate><AdminAccessibilityEnhancer/><AdminSupabaseFetchGuard/><Admin50kConsoleRouter/><AdminActivityTrendRepair/><Admin50kPagingEnhancer/><Admin50kOperationsEnhancer/><Admin50kInstitutionFileSync/><Admin50kInstitutionBridge/>{children}<AdminAnalyticsPanel/><AdminTrendAnalyticsPanel/><AdminExecutiveInsightsPanel/><AdminMonthlyReportingPanel/><AdminMonthlySendNowPanel/><AdminForgotPasswordLink/><BatchInvite500/></AdminMfaGate>}
+export default function AdminLayout({children}){return <AdminMfaGate><AdminAccessibilityEnhancer/><AdminSupabaseFetchGuard/><Admin50kConsoleRouter/><AdminActivityTrendRepair/><Admin50kPagingEnhancer/><Admin50kOperationsEnhancer/><Admin50kInstitutionFileSync/><Admin50kInstitutionBridge/><AdminInstitutionEnhancer/>{children}<AdminAnalyticsPanel/><AdminTrendAnalyticsPanel/><AdminExecutiveInsightsPanel/><AdminMonthlyReportingPanel/><AdminMonthlySendNowPanel/><AdminForgotPasswordLink/><BatchInvite500/></AdminMfaGate>}
