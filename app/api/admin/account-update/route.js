@@ -87,6 +87,29 @@ async function getIdentity(userId) {
   return body;
 }
 
+async function findIdentityByEmail(rawEmail) {
+  const email = String(rawEmail || "").trim().toLowerCase();
+  if (!validEmail(email)) throw new Error("A valid account email is required.");
+  let page = 1;
+  while (page <= 100) {
+    const response = await fetch(
+      `${SUPABASE_URL}/auth/v1/admin/users?page=${page}&per_page=1000`,
+      { headers: serviceHeaders(), cache: "no-store" },
+    );
+    const body = await readJson(response);
+    if (!response.ok)
+      throw new Error(body?.message || "Unable to locate the account.");
+    const users = Array.isArray(body?.users) ? body.users : [];
+    const match = users.find(
+      (user) => String(user?.email || "").trim().toLowerCase() === email,
+    );
+    if (match?.id) return match;
+    if (users.length < 1000) break;
+    page += 1;
+  }
+  throw new Error(`No CompassU account was found for ${email}.`);
+}
+
 async function getAccount(userId) {
   const identity = await getIdentity(userId);
   const email = String(identity?.email || "")
@@ -131,10 +154,14 @@ export async function POST(request) {
     const auth = await authorize(request);
     if (auth.error) return auth.error;
     const body = await request.json().catch(() => ({}));
-    const userId = String(body.user_id || "");
+    let userId = String(body.user_id || "");
+    if (!userId && body.email) {
+      const identity = await findIdentityByEmail(body.email);
+      userId = identity.id;
+    }
     if (!userId)
       return NextResponse.json(
-        { error: "Account id is required." },
+        { error: "An account id or email is required." },
         { status: 400 },
       );
     if (body.action === "load")
