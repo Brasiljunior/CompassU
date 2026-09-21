@@ -60,7 +60,7 @@ export default function Admin50kVisibleRowRepair(){
       if(!created||!lastSignIn||!survey||!access||!actions)return;
       while(row.firstChild)row.removeChild(row.firstChild);
       if(selectCell)row.appendChild(selectCell);row.appendChild(canonicalCell(user.institution,'institution'));row.appendChild(canonicalCell(user.first_name,'first-name'));row.appendChild(canonicalCell(user.last_name,'last-name'));row.appendChild(canonicalCell(String(user.email||'').toLowerCase(),'email'));row.appendChild(created);row.appendChild(lastSignIn);row.appendChild(survey);row.appendChild(access);row.appendChild(actions);
-      row.dataset.compassuAccountEmail=String(user.email||'').toLowerCase();row.dataset.compassuCanonical50k='1';
+      row.dataset.compassuAccountId=String(user.id||user.user_id||'');row.dataset.compassuAccountEmail=String(user.email||'').toLowerCase();row.dataset.compassuCanonical50k='1';
     }
 
     function paint(){rebuildHeader();const rows=visibleRows();rows.forEach((row,index)=>renderRow(row,currentUsers[index]));}

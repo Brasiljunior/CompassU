@@ -4,6 +4,8 @@ import fs from 'node:fs';
 
 const home = fs.readFileSync(new URL('../app/page.js', import.meta.url), 'utf8');
 const admin = fs.readFileSync(new URL('../app/admin/page.js', import.meta.url), 'utf8');
+const adminInstitutionEnhancer = fs.readFileSync(new URL('../app/admin/AdminInstitutionEnhancer.js', import.meta.url), 'utf8');
+const adminVisibleRowRepair = fs.readFileSync(new URL('../app/admin/Admin50kVisibleRowRepair.js', import.meta.url), 'utf8');
 const recommendationScope = fs.readFileSync(new URL('../app/api/account/recommendation-scope/route.js', import.meta.url), 'utf8');
 
 function section(source, start, end) {
@@ -75,6 +77,13 @@ test('administrator API requires an authenticated access token', () => {
   assert.match(callAdmin, /Administrator login required/);
   assert.match(callAdmin, /\/functions\/v1\/admin-console/);
   assert.match(callAdmin, /Authorization:`Bearer \$\{current\.access_token\}`/);
+});
+
+test('account editor identifies the selected account by stable user id', () => {
+  assert.match(admin, /data-compassu-account-id=\{u\.id\}/);
+  assert.match(adminVisibleRowRepair, /row\.dataset\.compassuAccountId/);
+  assert.match(adminInstitutionEnhancer, /accountId\s*=\s*String\(row\.dataset\.compassuAccountId/);
+  assert.match(adminInstitutionEnhancer, /user_id:\s*accountId\s*\|\|/);
 });
 
 test('bulk deletion requires explicit DELETE confirmation and protects signed-in admin selection', () => {

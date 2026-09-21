@@ -385,12 +385,16 @@ export default function AdminInstitutionEnhancer() {
 
     async function openEditModal(row) {
       closeEditModal();
+      const accountId = String(row.dataset.compassuAccountId || "");
       const email = getEmailForRow(row);
-      if (!email) {
+      if (!accountId && !email) {
         window.alert("CompassU could not identify this account. Refresh the dashboard and try again.");
         return;
       }
       const user =
+        overviewUsers.find(
+          (u) => String(u.id || u.user_id || "") === accountId,
+        ) ||
         overviewUsers.find(
           (u) => String(u.email || "").toLowerCase() === email,
         ) || {};
@@ -420,7 +424,7 @@ export default function AdminInstitutionEnhancer() {
           },
           body: JSON.stringify({
             action: "load_account_edit",
-            user_id: user.id || user.user_id || "",
+            user_id: accountId || user.id || user.user_id || "",
             email,
           }),
           },
