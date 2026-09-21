@@ -8,7 +8,7 @@ const SUPABASE_URL =
 const SUPABASE_PUBLIC_KEY =
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
   "sb_publishable_lWtjaYYRk4hd1Bb-yKG3eA_CxF4CW9-";
-const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
 const readJson = async (response) => {
   try {
     return await response.json();
@@ -16,18 +16,10 @@ const readJson = async (response) => {
     return null;
   }
 };
-const serviceHeaders = () => ({
-  apikey: SERVICE_ROLE_KEY,
-  Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
-});
+
 
 export async function GET(request) {
   try {
-    if (!SERVICE_ROLE_KEY)
-      return NextResponse.json(
-        { error: "Recommendation scoping is not configured." },
-        { status: 503 },
-      );
     const authorization = request.headers.get("authorization");
     if (!authorization)
       return NextResponse.json(
@@ -55,7 +47,7 @@ export async function GET(request) {
     );
     url.searchParams.set("limit", "1");
     const associationResponse = await fetch(url, {
-      headers: serviceHeaders(),
+      headers: { apikey: SUPABASE_PUBLIC_KEY, Authorization: authorization },
       cache: "no-store",
     });
     const associations = await readJson(associationResponse);
@@ -89,7 +81,7 @@ export async function GET(request) {
       catalogUrl.searchParams.set("select", "id,name,website");
       catalogUrl.searchParams.set("limit", "2");
       const catalogResponse = await fetch(catalogUrl, {
-        headers: serviceHeaders(),
+        headers: { apikey: SUPABASE_PUBLIC_KEY, Authorization: authorization },
         cache: "no-store",
       });
       const catalogRows = await readJson(catalogResponse);
@@ -108,7 +100,7 @@ export async function GET(request) {
       websiteUrl.searchParams.set("select", "website");
       websiteUrl.searchParams.set("limit", "1");
       const websiteResponse = await fetch(websiteUrl, {
-        headers: serviceHeaders(),
+        headers: { apikey: SUPABASE_PUBLIC_KEY, Authorization: authorization },
         cache: "no-store",
       });
       const websiteRows = await readJson(websiteResponse);
