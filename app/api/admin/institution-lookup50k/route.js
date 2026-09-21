@@ -86,12 +86,12 @@ export async function POST(request) {
           .filter(Boolean),
       ),
     ].slice(0, 100);
-    if (!emails.length) return NextResponse.json({ institutions: {} });
-    const institutions = {};
+    if (!emails.length) return NextResponse.json({ institutions: {}, institution_details: {} });
+    const institutions = {}, institution_details = {};
     for (let i = 0; i < emails.length; i += 20) {
       const chunk = emails.slice(i, i + 20);
       const url = new URL(`${SUPABASE_URL}/rest/v1/account_institutions`);
-      url.searchParams.set("select", "email,institution");
+      url.searchParams.set("select", "email,institution,institution_type,catalog_institution_id");
       url.searchParams.set(
         "or",
         `(${chunk.map((v) => `email.ilike.${sanitizeFilterValue(v)}`).join(",")})`,
@@ -112,10 +112,17 @@ export async function POST(request) {
           .trim()
           .toLowerCase();
         const institution = String(row?.institution || "").trim();
-        if (email && institution) institutions[email] = institution;
+        if (email && institution) {
+          institutions[email] = institution;
+          institution_details[email] = {
+            institution,
+            institution_type: row?.institution_type || "high_school",
+            catalog_institution_id: row?.catalog_institution_id || null,
+          };
+        }
       }
     }
-    return NextResponse.json({ institutions });
+    return NextResponse.json({ institutions, institution_details });
   } catch (error) {
     return NextResponse.json(
       { error: error?.message || "Unable to load institution associations." },
