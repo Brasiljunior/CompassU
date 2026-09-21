@@ -4,6 +4,7 @@ import fs from 'node:fs';
 
 const home = fs.readFileSync(new URL('../app/page.js', import.meta.url), 'utf8');
 const admin = fs.readFileSync(new URL('../app/admin/page.js', import.meta.url), 'utf8');
+const recommendationScope = fs.readFileSync(new URL('../app/api/account/recommendation-scope/route.js', import.meta.url), 'utf8');
 
 function section(source, start, end) {
   const from = source.indexOf(start);
@@ -15,37 +16,37 @@ function section(source, start, end) {
 
 test('classroom login retries only HTTP 429 and caps retry loop', () => {
   const login = section(home, 'async function login()', 'function logout()');
-  assert.match(login, /attempt<8/);
-  assert.match(login, /response\.status!==429/);
+  assert.match(login, /attempt\s*<\s*8/);
+  assert.match(login, /response\.status\s*!==\s*429/);
   assert.match(login, /Retry-After/);
   assert.match(login, /large number of students are signing in right now/i);
-  assert.match(login, /Math\.min\(waitSeconds,25\)\*1000/);
-  assert.match(login, /localStorage\.setItem\('compassu_session'/);
+  assert.match(login, /Math\.min\(waitSeconds,\s*25\)\s*\*\s*1000/);
+  assert.match(login, /localStorage\.setItem\(["']compassu_session["']/);
 });
 
 test('assessment resume restores persisted responses and first unanswered question', () => {
   const start = section(home, 'async function startAssessment()', 'async function answer(value)');
   assert.match(start, /status=eq\.in_progress/);
   assert.match(start, /assessment_responses\?attempt_id=eq\./);
-  assert.match(start, /mapped\[row\.question_id\]=Number\(row\.response_value\.value\)/);
-  assert.match(start, /findIndex\(q=>!mapped\[q\.id\]\)/);
+  assert.match(start, /mapped\[row\.question_id\]\s*=\s*Number\(row\.response_value\.value\)/);
+  assert.match(start, /findIndex\(\(?q\)?\s*=>\s*!mapped\[q\.id\]\)/);
 });
 
 test('assessment answers are persisted with attempt, user, question, and value', () => {
   const answer = section(home, 'async function answer(value)', 'async function finishAssessment()');
   assert.match(answer, /on_conflict=attempt_id,question_id/);
-  assert.match(answer, /attempt_id:attempt\.id/);
-  assert.match(answer, /user_id:session\.user\.id/);
-  assert.match(answer, /question_id:q\.id/);
-  assert.match(answer, /response_value:\{value\}/);
+  assert.match(answer, /attempt_id:\s*attempt\.id/);
+  assert.match(answer, /user_id:\s*session\.user\.id/);
+  assert.match(answer, /question_id:\s*q\.id/);
+  assert.match(answer, /response_value:\s*\{\s*value\s*\}/);
 });
 
 test('assessment cannot finalize before 80 answers and uses finalize_assessment RPC', () => {
   const finish = section(home, 'async function finishAssessment()', 'async function loadResults');
-  assert.match(finish, /Object\.keys\(answers\)\.length<80/);
+  assert.match(finish, /Object\.keys\(answers\)\.length\s*<\s*80/);
   assert.match(finish, /answer all 80 questions/i);
   assert.match(finish, /\/rest\/v1\/rpc\/finalize_assessment/);
-  assert.match(finish, /p_attempt_id:attempt\.id/);
+  assert.match(finish, /p_attempt_id:\s*attempt\.id/);
   assert.match(finish, /setMatches\(result\)/);
 });
 
@@ -55,7 +56,17 @@ test('results reload uses latest completed attempt and existing major matches', 
   assert.match(results, /order=completed_at\.desc&limit=1/);
   assert.match(results, /major_matches\?attempt_id=eq\./);
   assert.match(results, /finalize_assessment/);
-  assert.match(results, /setMatches\(rows\.slice\(0,10\)\)/);
+  assert.match(results, /setMatches\(rows\.slice\(0,\s*10\)\)/);
+});
+
+test('college recommendations are restricted to a configured home institution', () => {
+  const explore = section(home, 'async function exploreMajor', 'async function loadFavorites');
+  assert.match(explore, /scope\?\.mode\s*===\s*["']home_institution["']/);
+  assert.match(explore, /institution_id=eq\.\$\{scope\.institution_id\}/);
+  assert.match(explore, /scope\?\.mode\s*===\s*["']unavailable["']/);
+  assert.match(recommendationScope, /institutionType\s*===\s*["']high_school["']/);
+  assert.match(recommendationScope, /mode:\s*["']home_institution["']/);
+  assert.match(recommendationScope, /configured:\s*Boolean\(institutionId\)/);
 });
 
 test('administrator API requires an authenticated access token', () => {

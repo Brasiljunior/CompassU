@@ -1,43 +1,1241 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useState } from 'react';
-import { generateCompassUPdf } from './pdfReport';
+import { useEffect, useMemo, useState } from "react";
+import { generateCompassUPdf } from "./pdfReport";
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://xvvgalifibyqwebasalx.supabase.co';
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_lWtjaYYRk4hd1Bb-yKG3eA_CxF4CW9-';
-const baseHeaders = { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' };
-const choices = ['Strongly disagree', 'Disagree', 'Neutral', 'Agree', 'Strongly agree'];
+const SUPABASE_URL =
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  "https://xvvgalifibyqwebasalx.supabase.co";
+const SUPABASE_KEY =
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+  "sb_publishable_lWtjaYYRk4hd1Bb-yKG3eA_CxF4CW9-";
+const baseHeaders = {
+  apikey: SUPABASE_KEY,
+  "Content-Type": "application/json",
+};
+const choices = [
+  "Strongly disagree",
+  "Disagree",
+  "Neutral",
+  "Agree",
+  "Strongly agree",
+];
 
-function getSession(){try{return JSON.parse(localStorage.getItem('compassu_session')||'null')}catch{return null}}
-function authHeaders(){const s=getSession();return{...baseHeaders,...(s?.access_token?{Authorization:`Bearer ${s.access_token}`}:{})}}
-async function api(path,options={}){if(!SUPABASE_URL||!SUPABASE_KEY)throw new Error('CompassU environment variables are not configured.');const response=await fetch(`${SUPABASE_URL}${path}`,{...options,headers:{...authHeaders(),...(options.headers||{})}});const text=await response.text();let body=null;try{body=text?JSON.parse(text):null}catch{body=text}if(!response.ok)throw new Error(body?.message||body?.msg||body?.error_description||body?.error||`Request failed (${response.status})`);return body}
-const money=(value)=>value==null?'Unavailable':`$${Number(value).toLocaleString()}`;
-const jobUrl=(provider,role,location='')=>{const q=encodeURIComponent(role||'');const l=encodeURIComponent(location||'');if(provider==='indeed')return `https://www.indeed.com/jobs?q=${q}${location?`&l=${l}`:''}`;if(provider==='linkedin')return `https://www.linkedin.com/jobs/search/?keywords=${q}${location?`&location=${l}`:''}`;if(provider==='ziprecruiter')return `https://www.ziprecruiter.com/jobs-search?search=${q}${location?`&location=${l}`:''}`;return `https://www.google.com/search?q=${encodeURIComponent(`${role||''} jobs${location?` ${location}`:''}`)}`};
-const normalizeWebsite=(website)=>{if(!website)return null;return /^https?:\/\//i.test(website)?website:`https://${website}`};
-const institutionType=(institution)=>{const sector=Number(institution?.sector);if(sector===4)return'community';if([1,2,3].includes(sector))return'four-year';return'other'};
-
-export default function Home(){
- const[view,setView]=useState('landing'),[session,setSession]=useState(null),[authMode,setAuthMode]=useState('signup'),[form,setForm]=useState({email:'',password:'',first_name:'',last_name:''}),[message,setMessage]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[questions,setQuestions]=useState([]),[questionIndex,setQuestionIndex]=useState(0),[answers,setAnswers]=useState({}),[attempt,setAttempt]=useState(null),[attemptId,setAttemptId]=useState(null),[matches,setMatches]=useState([]),[selectedMajor,setSelectedMajor]=useState(null),[careers,setCareers]=useState([]),[colleges,setColleges]=useState([]),[traits,setTraits]=useState([]),[openCareer,setOpenCareer]=useState(null),[stateFilter,setStateFilter]=useState('ALL'),[collegeType,setCollegeType]=useState('ALL'),[favorites,setFavorites]=useState(new Set()),[compare,setCompare]=useState([]),[jobLocation,setJobLocation]=useState('');
- async function signup(){setBusy(true);setMessage('');try{const response=await fetch(`${SUPABASE_URL}/auth/v1/signup`,{method:'POST',headers:baseHeaders,body:JSON.stringify({email:form.email,password:form.password,data:{first_name:form.first_name,last_name:form.last_name}})});const text=await response.text();let body={};try{body=text?JSON.parse(text):{}}catch{throw new Error(`Account service returned an unexpected response (${response.status}).`)}if(!response.ok)throw new Error(body.msg||body.error_description||'Unable to create account');if(body.access_token){localStorage.setItem('compassu_session',JSON.stringify(body));setSession(body);await api('/rest/v1/profiles',{method:'POST',headers:{Prefer:'resolution=merge-duplicates'},body:JSON.stringify({id:body.user.id,first_name:form.first_name,last_name:form.last_name})});setView('dashboard')}else setMessage('Account created. Check your email to confirm your address, then log in.')}catch(error){setMessage(error.message)}finally{setBusy(false)}}
- async function login(){setBusy(true);setMessage('');try{let body=null;for(let attempt=0;attempt<8;attempt++){const response=await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`,{method:'POST',headers:baseHeaders,body:JSON.stringify({email:form.email,password:form.password})});const text=await response.text();let parsed={};try{parsed=text?JSON.parse(text):{}}catch{throw new Error(`Login service returned an unexpected response (${response.status}). Please try again.`)}if(response.ok){body=parsed;break}if(response.status!==429)throw new Error(parsed.error_description||parsed.msg||parsed.message||'Login failed');setMessage('A large number of students are signing in right now. CompassU is connecting you automatically. Please keep this page open.');const retryAfter=Number(response.headers.get('Retry-After')||0);const base=Math.min(6+(attempt*3),18);const waitSeconds=retryAfter>0?Math.max(retryAfter,base+Math.random()*8):base+Math.random()*12;await new Promise(resolve=>setTimeout(resolve,Math.min(waitSeconds,25)*1000))}if(!body)throw new Error('CompassU is experiencing unusually heavy sign-in traffic. Please wait a moment and try again.');localStorage.setItem('compassu_session',JSON.stringify(body));setSession(body);setMessage('');setView('dashboard');await Promise.all([loadResults(body),loadFavorites(body)])}catch(error){setMessage(error.message)}finally{setBusy(false)}}
- function logout(){localStorage.removeItem('compassu_session');setSession(null);setView('landing');setMatches([]);setSelectedMajor(null)}
- async function startAssessment(){setBusy(true);setNotice('');try{const qs=await api('/rest/v1/assessment_questions?is_active=eq.true&select=id,question_number,dimension,question_text&order=question_number.asc');setQuestions(qs);let rows=await api(`/rest/v1/assessment_attempts?user_id=eq.${session.user.id}&status=eq.in_progress&select=*&order=started_at.desc&limit=1`);let current=rows?.[0];if(!current)current=(await api('/rest/v1/assessment_attempts?select=*',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({user_id:session.user.id})}))[0];setAttempt(current);const saved=await api(`/rest/v1/assessment_responses?attempt_id=eq.${current.id}&select=question_id,response_value`);const mapped={};saved.forEach(row=>{mapped[row.question_id]=Number(row.response_value.value)});setAnswers(mapped);const firstMissing=qs.findIndex(q=>!mapped[q.id]);setQuestionIndex(firstMissing<0?0:firstMissing);setView('assessment')}catch(error){setMessage(error.message)}finally{setBusy(false)}}
- async function answer(value){const q=questions[questionIndex];setAnswers({...answers,[q.id]:value});await api('/rest/v1/assessment_responses?on_conflict=attempt_id,question_id',{method:'POST',headers:{Prefer:'resolution=merge-duplicates'},body:JSON.stringify({attempt_id:attempt.id,user_id:session.user.id,question_id:q.id,response_value:{value}})});if(questionIndex<questions.length-1)setTimeout(()=>setQuestionIndex(n=>n+1),160)}
- async function finishAssessment(){setBusy(true);setMessage('');try{if(Object.keys(answers).length<80)throw new Error('Please answer all 80 questions before finishing.');const result=await api('/rest/v1/rpc/finalize_assessment',{method:'POST',body:JSON.stringify({p_attempt_id:attempt.id})});setAttemptId(attempt.id);setMatches(result);setView('dashboard');if(result[0])await exploreMajor(result[0],session,attempt.id);const delivery=await emailResults(attempt.id,true);if(delivery?.sent)setNotice('Your CompassU roadmap was emailed to your account address.');else if(delivery?.delivery_configured===false)setNotice('Your results are ready. Automatic email delivery is prepared but the CompassU sending domain/API key still needs to be connected.')}catch(error){setMessage(error.message)}finally{setBusy(false)}}
- async function loadResults(current=session){try{const headers={...baseHeaders,Authorization:`Bearer ${current.access_token}`};const attempts=await fetch(`${SUPABASE_URL}/rest/v1/assessment_attempts?user_id=eq.${current.user.id}&status=eq.completed&select=id&order=completed_at.desc&limit=1`,{headers}).then(r=>r.json());if(!attempts?.[0])return;setAttemptId(attempts[0].id);let rows=await fetch(`${SUPABASE_URL}/rest/v1/major_matches?attempt_id=eq.${attempts[0].id}&select=major_id,match_score,rank,majors(name)&order=rank.asc`,{headers}).then(r=>r.json());rows=Array.isArray(rows)&&rows.length?rows.map(r=>({major_id:r.major_id,major_name:r.majors?.name,match_score:r.match_score,rank:r.rank})):await fetch(`${SUPABASE_URL}/rest/v1/rpc/finalize_assessment`,{method:'POST',headers,body:JSON.stringify({p_attempt_id:attempts[0].id})}).then(r=>r.json());if(Array.isArray(rows)){setMatches(rows.slice(0,10));if(rows[0])await exploreMajor(rows[0],current,attempts[0].id)}}catch(error){console.error(error)}}
- async function exploreMajor(major,current=session,currentAttemptId=attemptId){setSelectedMajor(major);setBusy(true);setOpenCareer(null);try{const headers={...baseHeaders,Authorization:`Bearer ${current.access_token}`};const[careerRows,collegeRows,traitRows]=await Promise.all([fetch(`${SUPABASE_URL}/rest/v1/major_occupations?major_id=eq.${major.major_id}&select=relevance_weight,occupations(id,name,soc_code,median_salary,salary_year,outlook_percent,typical_education,annual_openings,projection_start_year,projection_end_year,work_experience,on_the_job_training)&order=relevance_weight.desc&limit=12`,{headers}).then(r=>r.json()),fetch(`${SUPABASE_URL}/rest/v1/institution_majors?major_id=eq.${major.major_id}&select=completions_total,award_levels,source_year,institutions(id,name,city,state,website,sector,highest_award_level)&order=completions_total.desc.nullslast&limit=750`,{headers}).then(r=>r.json()),currentAttemptId?fetch(`${SUPABASE_URL}/rest/v1/rpc/get_major_explanation`,{method:'POST',headers,body:JSON.stringify({p_attempt_id:currentAttemptId,p_major_id:major.major_id})}).then(r=>r.json()):Promise.resolve([])]);setCareers(Array.isArray(careerRows)?careerRows:[]);setColleges(Array.isArray(collegeRows)?collegeRows:[]);setTraits(Array.isArray(traitRows)?traitRows:[]);setStateFilter('ALL');setCollegeType('ALL')}finally{setBusy(false)}}
- async function loadFavorites(current=session){try{const headers={...baseHeaders,Authorization:`Bearer ${current.access_token}`};const rows=await fetch(`${SUPABASE_URL}/rest/v1/user_major_favorites?user_id=eq.${current.user.id}&select=major_id`,{headers}).then(r=>r.json());setFavorites(new Set((rows||[]).map(r=>r.major_id)))}catch{}}
- async function toggleFavorite(id){const next=new Set(favorites);if(favorites.has(id)){await api(`/rest/v1/user_major_favorites?user_id=eq.${session.user.id}&major_id=eq.${id}`,{method:'DELETE'});next.delete(id)}else{await api('/rest/v1/user_major_favorites',{method:'POST',body:JSON.stringify({user_id:session.user.id,major_id:id})});next.add(id)}setFavorites(next)}
- async function emailResults(id=attemptId,silent=false){if(!id)return null;try{const response=await fetch(`${SUPABASE_URL}/functions/v1/send-results-email`,{method:'POST',headers:authHeaders(),body:JSON.stringify({attempt_id:id})});const body=await response.json();if(!response.ok)throw new Error(body.error||'Unable to email results');if(!silent)setNotice(body.sent?'Your CompassU roadmap has been sent. Check your inbox and keep exploring your direction.':body.message||'Email delivery is not configured yet.');return body}catch(error){if(!silent)setNotice(error.message);return null}}
- async function downloadPdf(){if(!matches.length)return;try{await generateCompassUPdf({matches,selectedMajor,traits,careers,session})}catch(error){console.error('CompassU PDF generation failed',error);window.print()}}
- useEffect(()=>{const stored=getSession();if(stored){setSession(stored);setView('dashboard');loadResults(stored);loadFavorites(stored)}},[]);
- const filteredColleges=useMemo(()=>colleges.filter(c=>(stateFilter==='ALL'||c.institutions?.state===stateFilter)&&(collegeType==='ALL'||institutionType(c.institutions)===collegeType)),[colleges,stateFilter,collegeType]);const states=useMemo(()=>[...new Set(colleges.map(c=>c.institutions?.state).filter(Boolean))].sort(),[colleges]);const progress=questions.length?Math.round(((questionIndex+1)/questions.length)*100):0;
- if(view==='landing')return <div className="shell"><Nav session={session} onLogin={()=>{setView('auth');setAuthMode('login')}} onStart={()=>{setView('auth');setAuthMode('signup')}}/><main className="hero"><div><span className="eyebrow">College & Career Discovery</span><h1>Find your true north. Chart a future that fits.</h1><p>CompassU transforms who you are into a personalized roadmap for where you can go—connecting your interests, strengths, personality, and values to majors, careers, salaries, and colleges.</p><div className="navActions"><button className="btn primary" onClick={()=>{setView('auth');setAuthMode('signup')}}>Start My Journey</button><button className="btn ghost" onClick={()=>{setView('auth');setAuthMode('login')}}>Continue My Journey</button></div></div><div className="heroCard"><h2>Your CompassU Roadmap</h2><div className="mini"><b>Find Your Heading</b><div style={{fontSize:25,marginTop:6}}>Discover majors aligned with who you are</div></div><div className="mini"><b>Explore Career Waypoints</b><div>Compare pay, growth, openings, and education</div></div><div className="mini"><b>Choose Your Destination</b><div>Find colleges offering programs on your path</div></div></div></main><section className="features"><Feature b="Know yourself" t="80 questions across six dimensions reveal the signals that shape your best-fit paths."/><Feature b="See your direction" t="Major matches turn your personal profile into clear, ranked possibilities."/><Feature b="Explore the horizon" t="Federal career data helps you see where each path may lead in the real world."/><Feature b="Choose your destination" t="College Finder connects your direction to thousands of institutions and programs."/></section></div>;
- if(view==='auth')return <div><Nav onStart={()=>setView('landing')}/><div className="center"><div className="panel"><div className="tabs"><button className={`btn ${authMode==='signup'?'primary':'ghost'}`} onClick={()=>{setAuthMode('signup');setMessage('')}}>Create account</button><button className={`btn ${authMode==='login'?'primary':'ghost'}`} onClick={()=>{setAuthMode('login');setMessage('')}}>Log in</button></div><h2>{authMode==='signup'?'Start your CompassU journey':'Welcome back, explorer'}</h2><p className="muted">Your future has many possible paths. CompassU helps you find the ones worth exploring first.</p>{authMode==='signup'&&<div className="two"><Field label="First name" value={form.first_name} onChange={v=>setForm({...form,first_name:v})}/><Field label="Last name" value={form.last_name} onChange={v=>setForm({...form,last_name:v})}/></div>}<Field label="Email" type="email" value={form.email} onChange={v=>setForm({...form,email:v})}/><Field label="Password" type="password" value={form.password} onChange={v=>setForm({...form,password:v})}/>{authMode==='login'&&<div style={{textAlign:'right',marginTop:-6,marginBottom:14}}><a href="/forgot-password" style={{fontWeight:800,color:'#2f6df6',textDecoration:'none'}}>Forgot password?</a></div>}{message&&<div className={message.startsWith('Account created')?'success':'error'}>{message}</div>}<button className="btn primary wide" disabled={busy} onClick={authMode==='signup'?signup:login}>{busy?'Working…':authMode==='signup'?'Begin My Journey':'Return to My Roadmap'}</button></div></div></div>;
- if(view==='assessment'){const q=questions[questionIndex];return <div><Nav session={session} onLogout={logout}/><div className="assessment"><div className="topbar"><div><b>Charting Your Compass</b><div className="muted small">{progress}% complete · every answer sharpens your direction · saved automatically</div></div><span className="tag">{q?.dimension?.replaceAll('_',' ')}</span></div><div className="progressWrap"><div className="progress" style={{width:`${progress}%`}}/></div>{q&&<div className="qCard"><div className="qnum">Question {q.question_number} of 80</div><div className="question">{q.question_text}</div><div className="choices">{choices.map((label,index)=><button key={label} className={`choice ${answers[q.id]===index+1?'selected':''}`} onClick={()=>answer(index+1)}><b>{index+1}</b> &nbsp; {label}</button>)}</div><div className="row"><button className="btn ghost" disabled={questionIndex===0} onClick={()=>setQuestionIndex(questionIndex-1)}>Back</button>{questionIndex<79?<button className="btn ghost" onClick={()=>setQuestionIndex(questionIndex+1)}>Next</button>:<button className="btn primary" disabled={busy} onClick={finishAssessment}>{busy?'Charting…':'Reveal My Roadmap'}</button>}</div></div>}{message&&<div className="error mt">{message}</div>}</div></div>}
- return <div><Nav session={session} onLogout={logout}/><div className="dashboard"><div className="topbar dashboardHead"><div><h1>Your CompassU Roadmap</h1><div className="muted">Your direction is personal. Explore the paths, compare the possibilities, and choose your next waypoint.</div></div><div className="actionBar"><button className="btn ghost" disabled={!matches.length} onClick={()=>emailResults()}>Email My Roadmap</button><button className="btn ghost" disabled={!matches.length} onClick={downloadPdf}>Download Roadmap</button><button className="btn primary" onClick={startAssessment}>{matches.length?'Recalibrate My Compass':'Start Assessment'}</button></div></div>{notice&&<div className="notice">{notice}</div>}{matches.length?<>{compare.length>0&&<div className="compareCard"><div className="topbar"><div><b>Compare Possible Paths</b><div className="small muted">Select up to 3 majors and see which direction feels strongest.</div></div><button className="btn tiny ghost" onClick={()=>setCompare([])}>Clear</button></div><div className="compareGrid">{compare.map(m=><div className="compareItem" key={m.major_id}><span className="score">{Number(m.match_score).toFixed(0)}%</span><b>{m.major_name}</b><button className="textBtn" onClick={()=>exploreMajor(m)}>Explore Path</button></div>)}</div></div>}<div className="grid"><div className="card"><div className="sectionTitle">Your Strongest Directions</div>{matches.map(m=><div className={`match ${selectedMajor?.major_id===m.major_id?'activeMatch':''}`} key={m.major_id}><button className="matchMain" onClick={()=>exploreMajor(m)}><div className="rank">{m.rank}</div><div><b>{m.major_name}</b><div className="muted small">See why it fits, where it can lead, and where you can study it</div></div><div className="score">{Number(m.match_score).toFixed(0)}%</div></button><div className="matchTools"><button title="Save favorite" className={`iconBtn ${favorites.has(m.major_id)?'saved':''}`} onClick={()=>toggleFavorite(m.major_id)}>{favorites.has(m.major_id)?'★':'☆'}</button><button className={`chip ${compare.some(x=>x.major_id===m.major_id)?'chipOn':''}`} onClick={()=>setCompare(items=>items.some(x=>x.major_id===m.major_id)?items.filter(x=>x.major_id!==m.major_id):items.length<3?[...items,m]:items)}>Compare</button></div></div>)}</div><div className="detailStack">{selectedMajor&&<div className="card"><div className="sectionTitle">Why This Path Points North</div><h2 className="majorTitle">{selectedMajor.major_name} <span>{Number(selectedMajor.match_score).toFixed(0)}%</span></h2><p className="muted small">This alignment reflects the traits most important to this field—not just a broad career category.</p><div className="traitList">{traits.slice(0,6).map(t=><div className="trait" key={t.trait_code}><div className="topbar"><b>{t.trait_name}</b><span>{Number(t.user_score).toFixed(0)}%</span></div><div className="traitTrack"><div style={{width:`${Math.min(100,Number(t.user_score))}%`}}/></div></div>)}</div></div>}<div className="card"><div className="sectionTitle">Career Waypoints</div><div className="jobSearchHead"><div><b>See where this path is hiring now</b><div className="small muted">Enter a city, state, ZIP code, or leave blank to search broadly. Live openings open on the selected job site.</div></div><input className="jobLocation" aria-label="Job search location" placeholder="Job location (optional)" value={jobLocation} onChange={e=>setJobLocation(e.target.value)}/></div>{careers.length===0?<div className="muted">The federal CIP→SOC crosswalk does not provide a direct occupation for this program. CompassU will not fabricate a career link.</div>:careers.slice(0,8).map(row=>{const o=row.occupations||{},open=openCareer===o.id;return <div className="career" key={o.id}><button className="interactiveRow careerToggle" onClick={()=>setOpenCareer(open?null:o.id)}><div className="topbar"><div><b>{o.name}</b><div className="small muted">{money(o.median_salary)} median pay{o.outlook_percent!=null?` · ${o.outlook_percent}% projected growth`:''}</div></div><span>{open?'−':'+'}</span></div></button>{open&&<div className="careerDetail"><Metric l="Typical education" v={o.typical_education||'Unavailable'}/><Metric l="Annual openings" v={o.annual_openings!=null?Number(o.annual_openings).toLocaleString():'Unavailable'}/><Metric l="Projection period" v={o.projection_start_year&&o.projection_end_year?`${o.projection_start_year}–${o.projection_end_year}`:'Unavailable'}/><Metric l="On-the-job training" v={o.on_the_job_training||'Unavailable'}/></div>}<div className="jobLinks"><a className="jobLink" href={jobUrl('indeed',o.name,jobLocation)} target="_blank" rel="noopener noreferrer">Search Indeed Jobs ↗</a><a className="jobLink" href={jobUrl('linkedin',o.name,jobLocation)} target="_blank" rel="noopener noreferrer">Search LinkedIn Jobs ↗</a><a className="jobLink" href={jobUrl('ziprecruiter',o.name,jobLocation)} target="_blank" rel="noopener noreferrer">Search ZipRecruiter ↗</a><a className="jobLink" href={jobUrl('google',o.name,jobLocation)} target="_blank" rel="noopener noreferrer">Search Google Jobs ↗</a></div></div>})}<div className="small muted jobDisclaimer">Job openings, salaries, and availability on third-party sites change frequently. CompassU provides search links for exploration and does not control or endorse individual postings.</div></div><div className="card"><div className="topbar collegeHead"><div className="sectionTitle noMargin">College Destinations</div><div className="collegeFilters"><select className="select" value={collegeType} onChange={e=>setCollegeType(e.target.value)} aria-label="College type"><option value="ALL">All colleges</option><option value="community">Community colleges</option><option value="four-year">Four-year colleges & universities</option></select><select className="select" value={stateFilter} onChange={e=>setStateFilter(e.target.value)} aria-label="State"><option value="ALL">All states</option>{states.map(s=><option key={s}>{s}</option>)}</select></div></div><div className="small muted mb">Turn direction into destination. Filter between community colleges and four-year colleges and universities, then select an institution to visit its website. IPEDS evidence shows institutions that recently awarded credentials in this program.</div>{filteredColleges.length===0?<div className="muted small collegeEmpty">No institutions in this category appear in the current program evidence. Try All colleges or another state.</div>:filteredColleges.slice(0,12).map(row=>{const inst=row.institutions||{},site=normalizeWebsite(inst.website),type=institutionType(inst);return <div className="college" key={inst.id}><div><div className="collegeNameRow"><b>{inst.name}</b>{type==='community'&&<span className="collegeTypeTag">Community College</span>}{type==='four-year'&&<span className="collegeTypeTag">Four-Year</span>}</div><div className="small muted">{[inst.city,inst.state].filter(Boolean).join(', ')}</div>{site&&<a className="collegeLink" href={site} target="_blank" rel="noopener noreferrer">Visit website ↗</a>}</div><div className="small collegeMeta">{row.completions_total!=null?<><b>{Number(row.completions_total).toLocaleString()}</b><span>2024 completions</span></>:<span>Program evidence</span>}</div></div>})}{filteredColleges.length>12&&<div className="muted small more">Showing 12 of {filteredColleges.length} destinations for these filters.</div>}</div></div></div></>:<div className="panel"><h2>Ready to find your true north?</h2><p className="muted">Complete the 80-question assessment and turn what makes you unique into a personalized roadmap of majors, careers, salaries, and colleges.</p><button className="btn primary" onClick={startAssessment}>Chart My Course</button></div>}</div></div>;
+function getSession() {
+  try {
+    return JSON.parse(localStorage.getItem("compassu_session") || "null");
+  } catch {
+    return null;
+  }
 }
-function Nav({session,onLogin,onStart,onLogout}){return <nav className="nav"><button onClick={onStart} className="brand brandBtn">Compass<span>U</span></button><div className="navActions">{session?<button className="btn ghost" onClick={onLogout}>Log out</button>:<><button className="btn ghost" onClick={onLogin}>Log in</button><button className="btn primary" onClick={onStart}>Find My Direction</button></>}</div></nav>}
-function Field({label,type='text',value,onChange}){return <div className="field"><label>{label}</label><input type={type} value={value} onChange={e=>onChange(e.target.value)}/></div>}
-function Feature({b,t}){return <div className="feature"><b>{b}</b><span className="muted">{t}</span></div>}
-function Metric({l,v}){return <div className="metric"><span>{l}</span><b>{v}</b></div>}
+function authHeaders() {
+  const s = getSession();
+  return {
+    ...baseHeaders,
+    ...(s?.access_token ? { Authorization: `Bearer ${s.access_token}` } : {}),
+  };
+}
+async function api(path, options = {}) {
+  if (!SUPABASE_URL || !SUPABASE_KEY)
+    throw new Error("CompassU environment variables are not configured.");
+  const response = await fetch(`${SUPABASE_URL}${path}`, {
+    ...options,
+    headers: { ...authHeaders(), ...(options.headers || {}) },
+  });
+  const text = await response.text();
+  let body = null;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    body = text;
+  }
+  if (!response.ok)
+    throw new Error(
+      body?.message ||
+        body?.msg ||
+        body?.error_description ||
+        body?.error ||
+        `Request failed (${response.status})`,
+    );
+  return body;
+}
+const money = (value) =>
+  value == null ? "Unavailable" : `$${Number(value).toLocaleString()}`;
+const jobUrl = (provider, role, location = "") => {
+  const q = encodeURIComponent(role || "");
+  const l = encodeURIComponent(location || "");
+  if (provider === "indeed")
+    return `https://www.indeed.com/jobs?q=${q}${location ? `&l=${l}` : ""}`;
+  if (provider === "linkedin")
+    return `https://www.linkedin.com/jobs/search/?keywords=${q}${location ? `&location=${l}` : ""}`;
+  if (provider === "ziprecruiter")
+    return `https://www.ziprecruiter.com/jobs-search?search=${q}${location ? `&location=${l}` : ""}`;
+  return `https://www.google.com/search?q=${encodeURIComponent(`${role || ""} jobs${location ? ` ${location}` : ""}`)}`;
+};
+const normalizeWebsite = (website) => {
+  if (!website) return null;
+  return /^https?:\/\//i.test(website) ? website : `https://${website}`;
+};
+const institutionType = (institution) => {
+  const sector = Number(institution?.sector);
+  if (sector === 4) return "community";
+  if ([1, 2, 3].includes(sector)) return "four-year";
+  return "other";
+};
+
+export default function Home() {
+  const [view, setView] = useState("landing"),
+    [session, setSession] = useState(null),
+    [authMode, setAuthMode] = useState("signup"),
+    [form, setForm] = useState({
+      email: "",
+      password: "",
+      first_name: "",
+      last_name: "",
+    }),
+    [message, setMessage] = useState(""),
+    [notice, setNotice] = useState(""),
+    [busy, setBusy] = useState(false),
+    [questions, setQuestions] = useState([]),
+    [questionIndex, setQuestionIndex] = useState(0),
+    [answers, setAnswers] = useState({}),
+    [attempt, setAttempt] = useState(null),
+    [attemptId, setAttemptId] = useState(null),
+    [matches, setMatches] = useState([]),
+    [selectedMajor, setSelectedMajor] = useState(null),
+    [careers, setCareers] = useState([]),
+    [colleges, setColleges] = useState([]),
+    [traits, setTraits] = useState([]),
+    [recommendationScope, setRecommendationScope] = useState({ mode: "open" }),
+    [openCareer, setOpenCareer] = useState(null),
+    [stateFilter, setStateFilter] = useState("ALL"),
+    [collegeType, setCollegeType] = useState("ALL"),
+    [favorites, setFavorites] = useState(new Set()),
+    [compare, setCompare] = useState([]),
+    [jobLocation, setJobLocation] = useState("");
+  async function loadRecommendationScope(current = session) {
+    try {
+      const response = await fetch("/api/account/recommendation-scope", {
+        headers: { Authorization: `Bearer ${current.access_token}` },
+        cache: "no-store",
+      });
+      const body = await response.json();
+      if (!response.ok)
+        throw new Error(body?.error || "Unable to load institution settings");
+      const scope = body || { mode: "open" };
+      setRecommendationScope(scope);
+      return scope;
+    } catch (error) {
+      console.error(error);
+      const scope = { mode: "unavailable", configuration_error: true };
+      setRecommendationScope(scope);
+      return scope;
+    }
+  }
+  async function signup() {
+    setBusy(true);
+    setMessage("");
+    try {
+      const response = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
+        method: "POST",
+        headers: baseHeaders,
+        body: JSON.stringify({
+          email: form.email,
+          password: form.password,
+          data: { first_name: form.first_name, last_name: form.last_name },
+        }),
+      });
+      const text = await response.text();
+      let body = {};
+      try {
+        body = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error(
+          `Account service returned an unexpected response (${response.status}).`,
+        );
+      }
+      if (!response.ok)
+        throw new Error(
+          body.msg || body.error_description || "Unable to create account",
+        );
+      if (body.access_token) {
+        localStorage.setItem("compassu_session", JSON.stringify(body));
+        setSession(body);
+        await api("/rest/v1/profiles", {
+          method: "POST",
+          headers: { Prefer: "resolution=merge-duplicates" },
+          body: JSON.stringify({
+            id: body.user.id,
+            first_name: form.first_name,
+            last_name: form.last_name,
+          }),
+        });
+        setView("dashboard");
+      } else
+        setMessage(
+          "Account created. Check your email to confirm your address, then log in.",
+        );
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function login() {
+    setBusy(true);
+    setMessage("");
+    try {
+      let body = null;
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const response = await fetch(
+          `${SUPABASE_URL}/auth/v1/token?grant_type=password`,
+          {
+            method: "POST",
+            headers: baseHeaders,
+            body: JSON.stringify({
+              email: form.email,
+              password: form.password,
+            }),
+          },
+        );
+        const text = await response.text();
+        let parsed = {};
+        try {
+          parsed = text ? JSON.parse(text) : {};
+        } catch {
+          throw new Error(
+            `Login service returned an unexpected response (${response.status}). Please try again.`,
+          );
+        }
+        if (response.ok) {
+          body = parsed;
+          break;
+        }
+        if (response.status !== 429)
+          throw new Error(
+            parsed.error_description ||
+              parsed.msg ||
+              parsed.message ||
+              "Login failed",
+          );
+        setMessage(
+          "A large number of students are signing in right now. CompassU is connecting you automatically. Please keep this page open.",
+        );
+        const retryAfter = Number(response.headers.get("Retry-After") || 0);
+        const base = Math.min(6 + attempt * 3, 18);
+        const waitSeconds =
+          retryAfter > 0
+            ? Math.max(retryAfter, base + Math.random() * 8)
+            : base + Math.random() * 12;
+        await new Promise((resolve) =>
+          setTimeout(resolve, Math.min(waitSeconds, 25) * 1000),
+        );
+      }
+      if (!body)
+        throw new Error(
+          "CompassU is experiencing unusually heavy sign-in traffic. Please wait a moment and try again.",
+        );
+      localStorage.setItem("compassu_session", JSON.stringify(body));
+      setSession(body);
+      setMessage("");
+      setView("dashboard");
+      const scope = await loadRecommendationScope(body);
+      await Promise.all([loadResults(body, scope), loadFavorites(body)]);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  function logout() {
+    localStorage.removeItem("compassu_session");
+    setSession(null);
+    setView("landing");
+    setMatches([]);
+    setSelectedMajor(null);
+  }
+  async function startAssessment() {
+    setBusy(true);
+    setNotice("");
+    try {
+      const qs = await api(
+        "/rest/v1/assessment_questions?is_active=eq.true&select=id,question_number,dimension,question_text&order=question_number.asc",
+      );
+      setQuestions(qs);
+      let rows = await api(
+        `/rest/v1/assessment_attempts?user_id=eq.${session.user.id}&status=eq.in_progress&select=*&order=started_at.desc&limit=1`,
+      );
+      let current = rows?.[0];
+      if (!current)
+        current = (
+          await api("/rest/v1/assessment_attempts?select=*", {
+            method: "POST",
+            headers: { Prefer: "return=representation" },
+            body: JSON.stringify({ user_id: session.user.id }),
+          })
+        )[0];
+      setAttempt(current);
+      const saved = await api(
+        `/rest/v1/assessment_responses?attempt_id=eq.${current.id}&select=question_id,response_value`,
+      );
+      const mapped = {};
+      saved.forEach((row) => {
+        mapped[row.question_id] = Number(row.response_value.value);
+      });
+      setAnswers(mapped);
+      const firstMissing = qs.findIndex((q) => !mapped[q.id]);
+      setQuestionIndex(firstMissing < 0 ? 0 : firstMissing);
+      setView("assessment");
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function answer(value) {
+    const q = questions[questionIndex];
+    setAnswers({ ...answers, [q.id]: value });
+    await api(
+      "/rest/v1/assessment_responses?on_conflict=attempt_id,question_id",
+      {
+        method: "POST",
+        headers: { Prefer: "resolution=merge-duplicates" },
+        body: JSON.stringify({
+          attempt_id: attempt.id,
+          user_id: session.user.id,
+          question_id: q.id,
+          response_value: { value },
+        }),
+      },
+    );
+    if (questionIndex < questions.length - 1)
+      setTimeout(() => setQuestionIndex((n) => n + 1), 160);
+  }
+  async function finishAssessment() {
+    setBusy(true);
+    setMessage("");
+    try {
+      if (Object.keys(answers).length < 80)
+        throw new Error("Please answer all 80 questions before finishing.");
+      const result = await api("/rest/v1/rpc/finalize_assessment", {
+        method: "POST",
+        body: JSON.stringify({ p_attempt_id: attempt.id }),
+      });
+      setAttemptId(attempt.id);
+      setMatches(result);
+      setView("dashboard");
+      if (result[0]) await exploreMajor(result[0], session, attempt.id);
+      const delivery = await emailResults(attempt.id, true);
+      if (delivery?.sent)
+        setNotice("Your CompassU roadmap was emailed to your account address.");
+      else if (delivery?.delivery_configured === false)
+        setNotice(
+          "Your results are ready. Automatic email delivery is prepared but the CompassU sending domain/API key still needs to be connected.",
+        );
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function loadResults(current = session, scope = recommendationScope) {
+    try {
+      const headers = {
+        ...baseHeaders,
+        Authorization: `Bearer ${current.access_token}`,
+      };
+      const attempts = await fetch(
+        `${SUPABASE_URL}/rest/v1/assessment_attempts?user_id=eq.${current.user.id}&status=eq.completed&select=id&order=completed_at.desc&limit=1`,
+        { headers },
+      ).then((r) => r.json());
+      if (!attempts?.[0]) return;
+      setAttemptId(attempts[0].id);
+      let rows = await fetch(
+        `${SUPABASE_URL}/rest/v1/major_matches?attempt_id=eq.${attempts[0].id}&select=major_id,match_score,rank,majors(name)&order=rank.asc`,
+        { headers },
+      ).then((r) => r.json());
+      rows =
+        Array.isArray(rows) && rows.length
+          ? rows.map((r) => ({
+              major_id: r.major_id,
+              major_name: r.majors?.name,
+              match_score: r.match_score,
+              rank: r.rank,
+            }))
+          : await fetch(`${SUPABASE_URL}/rest/v1/rpc/finalize_assessment`, {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ p_attempt_id: attempts[0].id }),
+            }).then((r) => r.json());
+      if (Array.isArray(rows)) {
+        setMatches(rows.slice(0, 10));
+        if (rows[0])
+          await exploreMajor(rows[0], current, attempts[0].id, scope);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  }
+  async function exploreMajor(
+    major,
+    current = session,
+    currentAttemptId = attemptId,
+    scope = recommendationScope,
+  ) {
+    setSelectedMajor(major);
+    setBusy(true);
+    setOpenCareer(null);
+    try {
+      const headers = {
+        ...baseHeaders,
+        Authorization: `Bearer ${current.access_token}`,
+      };
+      const homeFilter =
+        scope?.mode === "home_institution" && scope?.institution_id
+          ? `&institution_id=eq.${scope.institution_id}`
+          : "";
+      const collegeLimit = homeFilter ? "1" : "750";
+      const [careerRows, collegeRows, traitRows] = await Promise.all([
+        fetch(
+          `${SUPABASE_URL}/rest/v1/major_occupations?major_id=eq.${major.major_id}&select=relevance_weight,occupations(id,name,soc_code,median_salary,salary_year,outlook_percent,typical_education,annual_openings,projection_start_year,projection_end_year,work_experience,on_the_job_training)&order=relevance_weight.desc&limit=12`,
+          { headers },
+        ).then((r) => r.json()),
+        (scope?.mode === "home_institution" && !scope?.institution_id) ||
+        scope?.mode === "unavailable"
+          ? Promise.resolve([])
+          : fetch(
+              `${SUPABASE_URL}/rest/v1/institution_majors?major_id=eq.${major.major_id}${homeFilter}&select=completions_total,award_levels,source_year,institutions(id,name,city,state,website,sector,highest_award_level)&order=completions_total.desc.nullslast&limit=${collegeLimit}`,
+              { headers },
+            ).then((r) => r.json()),
+        currentAttemptId
+          ? fetch(`${SUPABASE_URL}/rest/v1/rpc/get_major_explanation`, {
+              method: "POST",
+              headers,
+              body: JSON.stringify({
+                p_attempt_id: currentAttemptId,
+                p_major_id: major.major_id,
+              }),
+            }).then((r) => r.json())
+          : Promise.resolve([]),
+      ]);
+      setCareers(Array.isArray(careerRows) ? careerRows : []);
+      setColleges(Array.isArray(collegeRows) ? collegeRows : []);
+      setTraits(Array.isArray(traitRows) ? traitRows : []);
+      setStateFilter("ALL");
+      setCollegeType("ALL");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function loadFavorites(current = session) {
+    try {
+      const headers = {
+        ...baseHeaders,
+        Authorization: `Bearer ${current.access_token}`,
+      };
+      const rows = await fetch(
+        `${SUPABASE_URL}/rest/v1/user_major_favorites?user_id=eq.${current.user.id}&select=major_id`,
+        { headers },
+      ).then((r) => r.json());
+      setFavorites(new Set((rows || []).map((r) => r.major_id)));
+    } catch {}
+  }
+  async function toggleFavorite(id) {
+    const next = new Set(favorites);
+    if (favorites.has(id)) {
+      await api(
+        `/rest/v1/user_major_favorites?user_id=eq.${session.user.id}&major_id=eq.${id}`,
+        { method: "DELETE" },
+      );
+      next.delete(id);
+    } else {
+      await api("/rest/v1/user_major_favorites", {
+        method: "POST",
+        body: JSON.stringify({ user_id: session.user.id, major_id: id }),
+      });
+      next.add(id);
+    }
+    setFavorites(next);
+  }
+  async function emailResults(id = attemptId, silent = false) {
+    if (!id) return null;
+    try {
+      const response = await fetch(
+        `${SUPABASE_URL}/functions/v1/send-results-email`,
+        {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify({ attempt_id: id }),
+        },
+      );
+      const body = await response.json();
+      if (!response.ok)
+        throw new Error(body.error || "Unable to email results");
+      if (!silent)
+        setNotice(
+          body.sent
+            ? "Your CompassU roadmap has been sent. Check your inbox and keep exploring your direction."
+            : body.message || "Email delivery is not configured yet.",
+        );
+      return body;
+    } catch (error) {
+      if (!silent) setNotice(error.message);
+      return null;
+    }
+  }
+  async function downloadPdf() {
+    if (!matches.length) return;
+    try {
+      await generateCompassUPdf({
+        matches,
+        selectedMajor,
+        traits,
+        careers,
+        session,
+      });
+    } catch (error) {
+      console.error("CompassU PDF generation failed", error);
+      window.print();
+    }
+  }
+  useEffect(() => {
+    const stored = getSession();
+    if (stored) {
+      setSession(stored);
+      setView("dashboard");
+      loadRecommendationScope(stored).then((scope) =>
+        loadResults(stored, scope),
+      );
+      loadFavorites(stored);
+    }
+  }, []);
+  const filteredColleges = useMemo(
+    () =>
+      colleges.filter(
+        (c) =>
+          (stateFilter === "ALL" || c.institutions?.state === stateFilter) &&
+          (collegeType === "ALL" ||
+            institutionType(c.institutions) === collegeType),
+      ),
+    [colleges, stateFilter, collegeType],
+  );
+  const states = useMemo(
+    () =>
+      [
+        ...new Set(colleges.map((c) => c.institutions?.state).filter(Boolean)),
+      ].sort(),
+    [colleges],
+  );
+  const progress = questions.length
+    ? Math.round(((questionIndex + 1) / questions.length) * 100)
+    : 0;
+  if (view === "landing")
+    return (
+      <div className="shell">
+        <Nav
+          session={session}
+          onLogin={() => {
+            setView("auth");
+            setAuthMode("login");
+          }}
+          onStart={() => {
+            setView("auth");
+            setAuthMode("signup");
+          }}
+        />
+        <main className="hero">
+          <div>
+            <span className="eyebrow">College & Career Discovery</span>
+            <h1>Find your true north. Chart a future that fits.</h1>
+            <p>
+              CompassU transforms who you are into a personalized roadmap for
+              where you can go—connecting your interests, strengths,
+              personality, and values to majors, careers, salaries, and
+              colleges.
+            </p>
+            <div className="navActions">
+              <button
+                className="btn primary"
+                onClick={() => {
+                  setView("auth");
+                  setAuthMode("signup");
+                }}
+              >
+                Start My Journey
+              </button>
+              <button
+                className="btn ghost"
+                onClick={() => {
+                  setView("auth");
+                  setAuthMode("login");
+                }}
+              >
+                Continue My Journey
+              </button>
+            </div>
+          </div>
+          <div className="heroCard">
+            <h2>Your CompassU Roadmap</h2>
+            <div className="mini">
+              <b>Find Your Heading</b>
+              <div style={{ fontSize: 25, marginTop: 6 }}>
+                Discover majors aligned with who you are
+              </div>
+            </div>
+            <div className="mini">
+              <b>Explore Career Waypoints</b>
+              <div>Compare pay, growth, openings, and education</div>
+            </div>
+            <div className="mini">
+              <b>Choose Your Destination</b>
+              <div>Find colleges offering programs on your path</div>
+            </div>
+          </div>
+        </main>
+        <section className="features">
+          <Feature
+            b="Know yourself"
+            t="80 questions across six dimensions reveal the signals that shape your best-fit paths."
+          />
+          <Feature
+            b="See your direction"
+            t="Major matches turn your personal profile into clear, ranked possibilities."
+          />
+          <Feature
+            b="Explore the horizon"
+            t="Federal career data helps you see where each path may lead in the real world."
+          />
+          <Feature
+            b="Choose your destination"
+            t="College Finder connects your direction to thousands of institutions and programs."
+          />
+        </section>
+      </div>
+    );
+  if (view === "auth")
+    return (
+      <div>
+        <Nav onStart={() => setView("landing")} />
+        <div className="center">
+          <div className="panel">
+            <div className="tabs">
+              <button
+                className={`btn ${authMode === "signup" ? "primary" : "ghost"}`}
+                onClick={() => {
+                  setAuthMode("signup");
+                  setMessage("");
+                }}
+              >
+                Create account
+              </button>
+              <button
+                className={`btn ${authMode === "login" ? "primary" : "ghost"}`}
+                onClick={() => {
+                  setAuthMode("login");
+                  setMessage("");
+                }}
+              >
+                Log in
+              </button>
+            </div>
+            <h2>
+              {authMode === "signup"
+                ? "Start your CompassU journey"
+                : "Welcome back, explorer"}
+            </h2>
+            <p className="muted">
+              Your future has many possible paths. CompassU helps you find the
+              ones worth exploring first.
+            </p>
+            {authMode === "signup" && (
+              <div className="two">
+                <Field
+                  label="First name"
+                  value={form.first_name}
+                  onChange={(v) => setForm({ ...form, first_name: v })}
+                />
+                <Field
+                  label="Last name"
+                  value={form.last_name}
+                  onChange={(v) => setForm({ ...form, last_name: v })}
+                />
+              </div>
+            )}
+            <Field
+              label="Email"
+              type="email"
+              value={form.email}
+              onChange={(v) => setForm({ ...form, email: v })}
+            />
+            <Field
+              label="Password"
+              type="password"
+              value={form.password}
+              onChange={(v) => setForm({ ...form, password: v })}
+            />
+            {authMode === "login" && (
+              <div
+                style={{ textAlign: "right", marginTop: -6, marginBottom: 14 }}
+              >
+                <a
+                  href="/forgot-password"
+                  style={{
+                    fontWeight: 800,
+                    color: "#2f6df6",
+                    textDecoration: "none",
+                  }}
+                >
+                  Forgot password?
+                </a>
+              </div>
+            )}
+            {message && (
+              <div
+                className={
+                  message.startsWith("Account created") ? "success" : "error"
+                }
+              >
+                {message}
+              </div>
+            )}
+            <button
+              className="btn primary wide"
+              disabled={busy}
+              onClick={authMode === "signup" ? signup : login}
+            >
+              {busy
+                ? "Working…"
+                : authMode === "signup"
+                  ? "Begin My Journey"
+                  : "Return to My Roadmap"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  if (view === "assessment") {
+    const q = questions[questionIndex];
+    return (
+      <div>
+        <Nav session={session} onLogout={logout} />
+        <div className="assessment">
+          <div className="topbar">
+            <div>
+              <b>Charting Your Compass</b>
+              <div className="muted small">
+                {progress}% complete · every answer sharpens your direction ·
+                saved automatically
+              </div>
+            </div>
+            <span className="tag">{q?.dimension?.replaceAll("_", " ")}</span>
+          </div>
+          <div className="progressWrap">
+            <div className="progress" style={{ width: `${progress}%` }} />
+          </div>
+          {q && (
+            <div className="qCard">
+              <div className="qnum">Question {q.question_number} of 80</div>
+              <div className="question">{q.question_text}</div>
+              <div className="choices">
+                {choices.map((label, index) => (
+                  <button
+                    key={label}
+                    className={`choice ${answers[q.id] === index + 1 ? "selected" : ""}`}
+                    onClick={() => answer(index + 1)}
+                  >
+                    <b>{index + 1}</b> &nbsp; {label}
+                  </button>
+                ))}
+              </div>
+              <div className="row">
+                <button
+                  className="btn ghost"
+                  disabled={questionIndex === 0}
+                  onClick={() => setQuestionIndex(questionIndex - 1)}
+                >
+                  Back
+                </button>
+                {questionIndex < 79 ? (
+                  <button
+                    className="btn ghost"
+                    onClick={() => setQuestionIndex(questionIndex + 1)}
+                  >
+                    Next
+                  </button>
+                ) : (
+                  <button
+                    className="btn primary"
+                    disabled={busy}
+                    onClick={finishAssessment}
+                  >
+                    {busy ? "Charting…" : "Reveal My Roadmap"}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+          {message && <div className="error mt">{message}</div>}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <Nav session={session} onLogout={logout} />
+      <div className="dashboard">
+        <div className="topbar dashboardHead">
+          <div>
+            <h1>Your CompassU Roadmap</h1>
+            <div className="muted">
+              Your direction is personal. Explore the paths, compare the
+              possibilities, and choose your next waypoint.
+            </div>
+          </div>
+          <div className="actionBar">
+            <button
+              className="btn ghost"
+              disabled={!matches.length}
+              onClick={() => emailResults()}
+            >
+              Email My Roadmap
+            </button>
+            <button
+              className="btn ghost"
+              disabled={!matches.length}
+              onClick={downloadPdf}
+            >
+              Download Roadmap
+            </button>
+            <button className="btn primary" onClick={startAssessment}>
+              {matches.length ? "Recalibrate My Compass" : "Start Assessment"}
+            </button>
+          </div>
+        </div>
+        {notice && <div className="notice">{notice}</div>}
+        {matches.length ? (
+          <>
+            {compare.length > 0 && (
+              <div className="compareCard">
+                <div className="topbar">
+                  <div>
+                    <b>Compare Possible Paths</b>
+                    <div className="small muted">
+                      Select up to 3 majors and see which direction feels
+                      strongest.
+                    </div>
+                  </div>
+                  <button
+                    className="btn tiny ghost"
+                    onClick={() => setCompare([])}
+                  >
+                    Clear
+                  </button>
+                </div>
+                <div className="compareGrid">
+                  {compare.map((m) => (
+                    <div className="compareItem" key={m.major_id}>
+                      <span className="score">
+                        {Number(m.match_score).toFixed(0)}%
+                      </span>
+                      <b>{m.major_name}</b>
+                      <button
+                        className="textBtn"
+                        onClick={() => exploreMajor(m)}
+                      >
+                        Explore Path
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="grid">
+              <div className="card">
+                <div className="sectionTitle">Your Strongest Directions</div>
+                {matches.map((m) => (
+                  <div
+                    className={`match ${selectedMajor?.major_id === m.major_id ? "activeMatch" : ""}`}
+                    key={m.major_id}
+                  >
+                    <button
+                      className="matchMain"
+                      onClick={() => exploreMajor(m)}
+                    >
+                      <div className="rank">{m.rank}</div>
+                      <div>
+                        <b>{m.major_name}</b>
+                        <div className="muted small">
+                          See why it fits, where it can lead, and where you can
+                          study it
+                        </div>
+                      </div>
+                      <div className="score">
+                        {Number(m.match_score).toFixed(0)}%
+                      </div>
+                    </button>
+                    <div className="matchTools">
+                      <button
+                        title="Save favorite"
+                        className={`iconBtn ${favorites.has(m.major_id) ? "saved" : ""}`}
+                        onClick={() => toggleFavorite(m.major_id)}
+                      >
+                        {favorites.has(m.major_id) ? "★" : "☆"}
+                      </button>
+                      <button
+                        className={`chip ${compare.some((x) => x.major_id === m.major_id) ? "chipOn" : ""}`}
+                        onClick={() =>
+                          setCompare((items) =>
+                            items.some((x) => x.major_id === m.major_id)
+                              ? items.filter((x) => x.major_id !== m.major_id)
+                              : items.length < 3
+                                ? [...items, m]
+                                : items,
+                          )
+                        }
+                      >
+                        Compare
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="detailStack">
+                {selectedMajor && (
+                  <div className="card">
+                    <div className="sectionTitle">
+                      Why This Path Points North
+                    </div>
+                    <h2 className="majorTitle">
+                      {selectedMajor.major_name}{" "}
+                      <span>
+                        {Number(selectedMajor.match_score).toFixed(0)}%
+                      </span>
+                    </h2>
+                    <p className="muted small">
+                      This alignment reflects the traits most important to this
+                      field—not just a broad career category.
+                    </p>
+                    <div className="traitList">
+                      {traits.slice(0, 6).map((t) => (
+                        <div className="trait" key={t.trait_code}>
+                          <div className="topbar">
+                            <b>{t.trait_name}</b>
+                            <span>{Number(t.user_score).toFixed(0)}%</span>
+                          </div>
+                          <div className="traitTrack">
+                            <div
+                              style={{
+                                width: `${Math.min(100, Number(t.user_score))}%`,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="card">
+                  <div className="sectionTitle">Career Waypoints</div>
+                  <div className="jobSearchHead">
+                    <div>
+                      <b>See where this path is hiring now</b>
+                      <div className="small muted">
+                        Enter a city, state, ZIP code, or leave blank to search
+                        broadly. Live openings open on the selected job site.
+                      </div>
+                    </div>
+                    <input
+                      className="jobLocation"
+                      aria-label="Job search location"
+                      placeholder="Job location (optional)"
+                      value={jobLocation}
+                      onChange={(e) => setJobLocation(e.target.value)}
+                    />
+                  </div>
+                  {careers.length === 0 ? (
+                    <div className="muted">
+                      The federal CIP→SOC crosswalk does not provide a direct
+                      occupation for this program. CompassU will not fabricate a
+                      career link.
+                    </div>
+                  ) : (
+                    careers.slice(0, 8).map((row) => {
+                      const o = row.occupations || {},
+                        open = openCareer === o.id;
+                      return (
+                        <div className="career" key={o.id}>
+                          <button
+                            className="interactiveRow careerToggle"
+                            onClick={() => setOpenCareer(open ? null : o.id)}
+                          >
+                            <div className="topbar">
+                              <div>
+                                <b>{o.name}</b>
+                                <div className="small muted">
+                                  {money(o.median_salary)} median pay
+                                  {o.outlook_percent != null
+                                    ? ` · ${o.outlook_percent}% projected growth`
+                                    : ""}
+                                </div>
+                              </div>
+                              <span>{open ? "−" : "+"}</span>
+                            </div>
+                          </button>
+                          {open && (
+                            <div className="careerDetail">
+                              <Metric
+                                l="Typical education"
+                                v={o.typical_education || "Unavailable"}
+                              />
+                              <Metric
+                                l="Annual openings"
+                                v={
+                                  o.annual_openings != null
+                                    ? Number(o.annual_openings).toLocaleString()
+                                    : "Unavailable"
+                                }
+                              />
+                              <Metric
+                                l="Projection period"
+                                v={
+                                  o.projection_start_year &&
+                                  o.projection_end_year
+                                    ? `${o.projection_start_year}–${o.projection_end_year}`
+                                    : "Unavailable"
+                                }
+                              />
+                              <Metric
+                                l="On-the-job training"
+                                v={o.on_the_job_training || "Unavailable"}
+                              />
+                            </div>
+                          )}
+                          <div className="jobLinks">
+                            <a
+                              className="jobLink"
+                              href={jobUrl("indeed", o.name, jobLocation)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              Search Indeed Jobs ↗
+                            </a>
+                            <a
+                              className="jobLink"
+                              href={jobUrl("linkedin", o.name, jobLocation)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              Search LinkedIn Jobs ↗
+                            </a>
+                            <a
+                              className="jobLink"
+                              href={jobUrl("ziprecruiter", o.name, jobLocation)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              Search ZipRecruiter ↗
+                            </a>
+                            <a
+                              className="jobLink"
+                              href={jobUrl("google", o.name, jobLocation)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              Search Google Jobs ↗
+                            </a>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                  <div className="small muted jobDisclaimer">
+                    Job openings, salaries, and availability on third-party
+                    sites change frequently. CompassU provides search links for
+                    exploration and does not control or endorse individual
+                    postings.
+                  </div>
+                </div>
+                <div className="card">
+                  <div className="topbar collegeHead">
+                    <div className="sectionTitle noMargin">
+                      College Destinations
+                    </div>
+                    {recommendationScope.mode === "open" && (
+                      <div className="collegeFilters">
+                        <select
+                          className="select"
+                          value={collegeType}
+                          onChange={(e) => setCollegeType(e.target.value)}
+                          aria-label="College type"
+                        >
+                          <option value="ALL">All colleges</option>
+                          <option value="community">Community colleges</option>
+                          <option value="four-year">
+                            Four-year colleges & universities
+                          </option>
+                        </select>
+                        <select
+                          className="select"
+                          value={stateFilter}
+                          onChange={(e) => setStateFilter(e.target.value)}
+                          aria-label="State"
+                        >
+                          <option value="ALL">All states</option>
+                          {states.map((s) => (
+                            <option key={s}>{s}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                  <div className="small muted mb">
+                    {recommendationScope.mode === "home_institution"
+                      ? `Programs are shown only for ${recommendationScope.institution || "your home institution"}, based on the institution associated with your CompassU account.`
+                      : "Turn direction into destination. Filter between community colleges and four-year colleges and universities, then select an institution to visit its website. IPEDS evidence shows institutions that recently awarded credentials in this program."}
+                  </div>
+                  {filteredColleges.length === 0 ? (
+                    <div className="muted small collegeEmpty">
+                      {recommendationScope.configuration_error
+                        ? "Your institution settings could not be verified. College recommendations are hidden until the settings are available."
+                        : recommendationScope.mode === "home_institution" &&
+                            !recommendationScope.configured
+                          ? "Your home institution is not yet linked to the CompassU college catalog. Ask your CompassU administrator to complete the institution mapping."
+                          : recommendationScope.mode === "home_institution"
+                            ? `${recommendationScope.institution || "Your home institution"} does not appear to offer this program in the current IPEDS evidence.`
+                            : "No institutions in this category appear in the current program evidence. Try All colleges or another state."}
+                    </div>
+                  ) : (
+                    filteredColleges.slice(0, 12).map((row) => {
+                      const inst = row.institutions || {},
+                        site = normalizeWebsite(inst.website),
+                        type = institutionType(inst);
+                      return (
+                        <div className="college" key={inst.id}>
+                          <div>
+                            <div className="collegeNameRow">
+                              <b>{inst.name}</b>
+                              {type === "community" && (
+                                <span className="collegeTypeTag">
+                                  Community College
+                                </span>
+                              )}
+                              {type === "four-year" && (
+                                <span className="collegeTypeTag">
+                                  Four-Year
+                                </span>
+                              )}
+                            </div>
+                            <div className="small muted">
+                              {[inst.city, inst.state]
+                                .filter(Boolean)
+                                .join(", ")}
+                            </div>
+                            {site && (
+                              <a
+                                className="collegeLink"
+                                href={site}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                Visit website ↗
+                              </a>
+                            )}
+                          </div>
+                          <div className="small collegeMeta">
+                            {row.completions_total != null ? (
+                              <>
+                                <b>
+                                  {Number(
+                                    row.completions_total,
+                                  ).toLocaleString()}
+                                </b>
+                                <span>2024 completions</span>
+                              </>
+                            ) : (
+                              <span>Program evidence</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                  {filteredColleges.length > 12 && (
+                    <div className="muted small more">
+                      Showing 12 of {filteredColleges.length} destinations for
+                      these filters.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="panel">
+            <h2>Ready to find your true north?</h2>
+            <p className="muted">
+              Complete the 80-question assessment and turn what makes you unique
+              into a personalized roadmap of majors, careers, salaries, and
+              colleges.
+            </p>
+            <button className="btn primary" onClick={startAssessment}>
+              Chart My Course
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+function Nav({ session, onLogin, onStart, onLogout }) {
+  return (
+    <nav className="nav">
+      <button onClick={onStart} className="brand brandBtn">
+        Compass<span>U</span>
+      </button>
+      <div className="navActions">
+        {session ? (
+          <button className="btn ghost" onClick={onLogout}>
+            Log out
+          </button>
+        ) : (
+          <>
+            <button className="btn ghost" onClick={onLogin}>
+              Log in
+            </button>
+            <button className="btn primary" onClick={onStart}>
+              Find My Direction
+            </button>
+          </>
+        )}
+      </div>
+    </nav>
+  );
+}
+function Field({ label, type = "text", value, onChange }) {
+  return (
+    <div className="field">
+      <label>{label}</label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
+  );
+}
+function Feature({ b, t }) {
+  return (
+    <div className="feature">
+      <b>{b}</b>
+      <span className="muted">{t}</span>
+    </div>
+  );
+}
+function Metric({ l, v }) {
+  return (
+    <div className="metric">
+      <span>{l}</span>
+      <b>{v}</b>
+    </div>
+  );
+}
