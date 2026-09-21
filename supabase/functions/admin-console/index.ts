@@ -37,6 +37,30 @@ Deno.serve(async(req)=>{
     };
     const audit=async(a:string,t:any=null,d:any={})=>fetch(`${url}/rest/v1/admin_audit_log`,{method:'POST',headers:{...sh,Prefer:'return=minimal'},body:JSON.stringify({admin_user_id:me.id,action:a,target_user_id:t,details:d})});
     const accountIdentity=async(id:string)=>rpc('admin_account_identity_50k',{p_user_id:id});
+    const findIdentityByEmail=async(rawEmail:string)=>{
+      const email=String(rawEmail||'').trim().toLowerCase();
+      for(let page=1;page<=100;page++){
+        const r=await fetch(`${url}/auth/v1/admin/users?page=${page}&per_page=1000`,{headers:sh});
+        const d=await r.json();
+        if(!r.ok)throw new Error(d?.message||'Unable to locate the account.');
+        const users=Array.isArray(d?.users)?d.users:[];
+        const match=users.find((u:any)=>String(u?.email||'').trim().toLowerCase()===email);
+        if(match?.id)return match;
+        if(users.length<1000)break;
+      }
+      throw new Error(`No CompassU account was found for ${email}.`);
+    };
+    const getEditableAccount=async(id:string)=>{
+      const ir=await fetch(`${url}/auth/v1/admin/users/${encodeURIComponent(id)}`,{headers:sh});
+      const identity=await ir.json();
+      if(!ir.ok)throw new Error(identity?.message||'Account not found.');
+      const email=String(identity?.email||'').trim().toLowerCase();
+      const [profiles,institutions]=await Promise.all([
+        fetch(`${url}/rest/v1/profiles?id=eq.${encodeURIComponent(id)}&select=first_name,last_name,state,graduation_year&limit=1`,{headers:sh}).then(r=>r.json()),
+        fetch(`${url}/rest/v1/account_institutions?email=eq.${encodeURIComponent(email)}&select=institution,institution_type,catalog_institution_id&limit=1`,{headers:sh}).then(r=>r.json())
+      ]);
+      return {id,email,first_name:profiles?.[0]?.first_name||identity?.user_metadata?.first_name||'',last_name:profiles?.[0]?.last_name||identity?.user_metadata?.last_name||'',state:profiles?.[0]?.state||'',graduation_year:profiles?.[0]?.graduation_year||'',institution:institutions?.[0]?.institution||'',institution_type:institutions?.[0]?.institution_type||'high_school',is_suspended:Boolean(identity?.banned_until&&new Date(identity.banned_until)>new Date()),user_metadata:identity?.user_metadata||{}};
+    };
 
     const invite=async(email:string,first_name='',last_name='')=>{
       email=email.trim().toLowerCase();
@@ -108,6 +132,38 @@ Deno.serve(async(req)=>{
       const institution=String(body.institution||'').trim()||null;
       const accounts=await rpc('admin_account_page_50k',{p_page:page,p_page_size:pageSize,p_search:search,p_institution:institution});
       return json(accounts||{users:[],pagination:{page,page_size:pageSize,total:0,total_pages:1,has_previous:false,has_next:false}});
+    }
+
+    if(action==='load_account_edit'||action==='update_account_edit'){
+      if(admins[0].role!=='master_admin')return json({error:'Only a master administrator can edit account records.'},403);
+      let id=String(body.user_id||'');
+      if(!id&&body.email)id=String((await findIdentityByEmail(body.email)).id||'');
+      if(!id)return json({error:'An account id or email is required.'},400);
+      if(action==='load_account_edit')return json({account:await getEditableAccount(id)});
+      const current=await getEditableAccount(id);
+      const email=String(body.email||'').trim().toLowerCase();
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return json({error:'Enter a valid email address.'},400);
+      const institution=String(body.institution||'').trim();
+      const institutionType=['high_school','community_college','university'].includes(body.institution_type)?body.institution_type:'high_school';
+      const graduationYear=body.graduation_year===''||body.graduation_year==null?null:Number(body.graduation_year);
+      if(graduationYear!==null&&(!Number.isInteger(graduationYear)||graduationYear<1900||graduationYear>2200))return json({error:'Graduation year must be between 1900 and 2200.'},400);
+      const firstName=String(body.first_name||'').trim(),lastName=String(body.last_name||'').trim();
+      const authUpdate=await fetch(`${url}/auth/v1/admin/users/${encodeURIComponent(id)}`,{method:'PUT',headers:sh,body:JSON.stringify({email,email_confirm:true,ban_duration:body.is_suspended?'876000h':'none',user_metadata:{...(current.user_metadata||{}),first_name:firstName,last_name:lastName}})});
+      if(!authUpdate.ok){const d=await authUpdate.json().catch(()=>({}));throw new Error(d?.message||'Unable to update the authentication account.');}
+      const profileUpdate=await fetch(`${url}/rest/v1/profiles?on_conflict=id`,{method:'POST',headers:{...sh,Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({id,first_name:firstName,last_name:lastName,state:String(body.state||'').trim()||null,graduation_year:graduationYear,updated_at:new Date().toISOString()})});
+      if(!profileUpdate.ok)throw new Error('Unable to update the account profile.');
+      if(institution){
+        let catalogId=null;
+        if(institutionType!=='high_school'){
+          const matches=await fetch(`${url}/rest/v1/institutions?name=eq.${encodeURIComponent(institution)}&select=id&limit=2`,{headers:sh}).then(r=>r.json());
+          if(Array.isArray(matches)&&matches.length===1)catalogId=matches[0].id;
+        }
+        const institutionUpdate=await fetch(`${url}/rest/v1/account_institutions?on_conflict=email`,{method:'POST',headers:{...sh,Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({email,institution,institution_type:institutionType,catalog_institution_id:catalogId,updated_at:new Date().toISOString()})});
+        if(!institutionUpdate.ok)throw new Error('Unable to update the institution assignment.');
+        if(current.email&&current.email!==email)await fetch(`${url}/rest/v1/account_institutions?email=eq.${encodeURIComponent(current.email)}`,{method:'DELETE',headers:sh});
+      }else if(current.email)await fetch(`${url}/rest/v1/account_institutions?email=eq.${encodeURIComponent(current.email)}`,{method:'DELETE',headers:sh});
+      await audit('update_account_information',id,{email_changed:current.email!==email,institution_type:institutionType,institution_assigned:Boolean(institution),access:body.is_suspended?'suspended':'active'});
+      return json({ok:true,account:await getEditableAccount(id),message:'Account information updated.'});
     }
 
     if(action==='user_detail'){

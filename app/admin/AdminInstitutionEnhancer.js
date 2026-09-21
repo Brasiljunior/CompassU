@@ -409,18 +409,22 @@ export default function AdminInstitutionEnhancer() {
         .addEventListener("click", closeEditModal);
       let account;
       try {
-        const response = await originalFetch("/api/admin/account-update", {
+        const response = await originalFetch(
+          `${SUPABASE_URL}/functions/v1/admin-console`,
+          {
           method: "POST",
           headers: {
             Authorization: `Bearer ${session.access_token}`,
+            apikey: SUPABASE_KEY,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            action: "load",
+            action: "load_account_edit",
             user_id: user.id || user.user_id || "",
             email,
           }),
-        });
+          },
+        );
         const body = await response.json();
         if (!response.ok)
           throw new Error(body?.error || "Unable to load the account.");
@@ -464,7 +468,7 @@ export default function AdminInstitutionEnhancer() {
           status.textContent = "";
           try {
             const payload = {
-              action: "update",
+              action: "update_account_edit",
               user_id: account.id,
               first_name: modal.querySelector("#compassu-edit-first-name")
                 .value,
@@ -483,14 +487,18 @@ export default function AdminInstitutionEnhancer() {
                 modal.querySelector("#compassu-edit-access").value ===
                 "suspended",
             };
-            const response = await originalFetch("/api/admin/account-update", {
+            const response = await originalFetch(
+              `${SUPABASE_URL}/functions/v1/admin-console`,
+              {
               method: "POST",
               headers: {
                 Authorization: `Bearer ${session.access_token}`,
+                apikey: SUPABASE_KEY,
                 "Content-Type": "application/json",
               },
               body: JSON.stringify(payload),
-            });
+              },
+            );
             const body = await response.json();
             if (!response.ok)
               throw new Error(
