@@ -153,7 +153,9 @@ export default function AdminInstitutionEnhancer() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            assignments: [{ email, institution, institution_type: institutionType }],
+            assignments: [
+              { email, institution, institution_type: institutionType },
+            ],
           }),
         });
         return response.ok;
@@ -324,7 +326,7 @@ export default function AdminInstitutionEnhancer() {
     }
 
     function getEmailForRow(row) {
-      return (
+      const known =
         row.dataset.compassuAccountEmail ||
         row
           .querySelector('[data-compassu-canonical-cell="email"]')
@@ -334,7 +336,12 @@ export default function AdminInstitutionEnhancer() {
           .querySelector("td:nth-child(2) span")
           ?.textContent?.trim()
           .toLowerCase() ||
-        ""
+        "";
+      if (known && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(known)) return known;
+      return (
+        String(row.textContent || "")
+          .match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0]
+          ?.toLowerCase() || ""
       );
     }
     function getInstitutionForRow(row) {
@@ -345,8 +352,12 @@ export default function AdminInstitutionEnhancer() {
       return normalize(user?.institution || institutionCache[email]) || "—";
     }
     function getInstitutionTypeForRow(row) {
-      const type=institutionTypeCache[getEmailForRow(row)]||"high_school";
-      return type==="community_college"?"Community college":type==="university"?"College / university":"High school";
+      const type = institutionTypeCache[getEmailForRow(row)] || "high_school";
+      return type === "community_college"
+        ? "Community college"
+        : type === "university"
+          ? "College / university"
+          : "High school";
     }
     function allInstitutions() {
       return [
@@ -380,32 +391,36 @@ export default function AdminInstitutionEnhancer() {
         overviewUsers.find(
           (u) => String(u.email || "").toLowerCase() === email,
         ) || {};
-      const session=readSession();
-      if(session?.access_token){
-        try{
-          const response=await originalFetch("/api/admin/institution-lookup50k",{method:"POST",headers:{Authorization:`Bearer ${session.access_token}`,"Content-Type":"application/json"},body:JSON.stringify({emails:[email]})});
-          const body=await response.json();
-          const saved=body?.institution_details?.[email];
-          if(response.ok&&saved){institutionCache={...institutionCache,[email]:saved.institution};institutionTypeCache={...institutionTypeCache,[email]:saved.institution_type||"high_school"};writeCache(institutionCache);writeTypeCache(institutionTypeCache)}
-        }catch(error){console.error("CompassU institution details could not be loaded",error)}
+      const session = readSession();
+      if (!session?.access_token || !user?.id) return;
+      let account;
+      try {
+        const response = await originalFetch("/api/admin/account-update", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ action: "load", user_id: user.id }),
+        });
+        const body = await response.json();
+        if (!response.ok)
+          throw new Error(body?.error || "Unable to load the account.");
+        account = body.account;
+      } catch (error) {
+        console.error("CompassU account editor could not load", error);
+        return;
       }
       const displayName =
-        [user.first_name, user.last_name].filter(Boolean).join(" ") ||
-        row
-          .querySelector('[data-compassu-canonical-cell="first-name"]')
-          ?.textContent?.trim() ||
+        [account.first_name, account.last_name].filter(Boolean).join(" ") ||
+        account.email ||
         "Account";
-      const currentInstitution = normalize(
-        user.institution || institutionCache[email],
-      );
-      const currentInstitutionType =
-        institutionTypeCache[email] || "high_school";
       const backdrop = document.createElement("div");
       backdrop.id = "compassu-account-edit-modal";
       backdrop.className = "adminModalBackdrop";
       const modal = document.createElement("div");
       modal.className = "adminModal";
-      modal.innerHTML = `<div class="adminPanelHead"><div><div class="adminKicker">EDIT ACCOUNT INFORMATION</div><h2>${htmlEscape(displayName)}</h2><p>${htmlEscape(email)}</p></div><button class="btn ghost" type="button" data-edit-close>Close</button></div><div class="detailSection"><label for="compassu-edit-institution">Institution</label><input id="compassu-edit-institution" placeholder="High school, college, or university" value="${htmlEscape(currentInstitution)}"><label for="compassu-edit-institution-type">Institution type</label><select id="compassu-edit-institution-type"><option value="high_school" ${currentInstitutionType === "high_school" ? "selected" : ""}>High school</option><option value="community_college" ${currentInstitutionType === "community_college" ? "selected" : ""}>Community college</option><option value="university" ${currentInstitutionType === "university" ? "selected" : ""}>College or university</option></select><p class="muted">College and university accounts receive program recommendations only from this home institution.</p></div><div class="detailActions"><button class="btn primary" type="button" data-edit-save>Save Changes</button><button class="btn ghost" type="button" data-edit-cancel>Cancel</button></div><div data-edit-status></div>`;
+      modal.innerHTML = `<div class="adminPanelHead"><div><div class="adminKicker">EDIT ACCOUNT INFORMATION</div><h2>${htmlEscape(displayName)}</h2><p>Editable account and institution fields</p></div><button class="btn ghost" type="button" data-edit-close>Close</button></div><div class="detailSection compassuEditGrid"><label for="compassu-edit-first-name">First name</label><input id="compassu-edit-first-name" value="${htmlEscape(account.first_name || "")}"><label for="compassu-edit-last-name">Last name</label><input id="compassu-edit-last-name" value="${htmlEscape(account.last_name || "")}"><label for="compassu-edit-email">Email</label><input id="compassu-edit-email" type="email" value="${htmlEscape(account.email || "")}"><label for="compassu-edit-state">State</label><input id="compassu-edit-state" value="${htmlEscape(account.state || "")}" maxlength="100"><label for="compassu-edit-graduation-year">Graduation year</label><input id="compassu-edit-graduation-year" type="number" min="1900" max="2200" value="${htmlEscape(account.graduation_year || "")}"><label for="compassu-edit-institution">Home institution</label><input id="compassu-edit-institution" placeholder="High school, college, or university" value="${htmlEscape(account.institution || "")}"><label for="compassu-edit-institution-type">Institution type</label><select id="compassu-edit-institution-type"><option value="high_school" ${account.institution_type === "high_school" ? "selected" : ""}>High school</option><option value="community_college" ${account.institution_type === "community_college" ? "selected" : ""}>Community college</option><option value="university" ${account.institution_type === "university" ? "selected" : ""}>College or university</option></select><label for="compassu-edit-access">Access</label><select id="compassu-edit-access"><option value="active" ${!account.is_suspended ? "selected" : ""}>Active</option><option value="suspended" ${account.is_suspended ? "selected" : ""}>Suspended</option></select><p class="muted">Created date, last sign-in date, and survey status are system records and remain read-only. College and university recommendations are limited to the selected home institution.</p></div><div class="detailActions"><button class="btn primary" type="button" data-edit-save>Save Changes</button><button class="btn ghost" type="button" data-edit-cancel>Cancel</button></div><div data-edit-status></div>`;
       backdrop.appendChild(modal);
       document.body.appendChild(backdrop);
       backdrop.addEventListener("click", (e) => {
@@ -421,32 +436,72 @@ export default function AdminInstitutionEnhancer() {
         .querySelector("[data-edit-save]")
         .addEventListener("click", async () => {
           const saveButton = modal.querySelector("[data-edit-save]"),
-            status = modal.querySelector("[data-edit-status]"),
-            institution = normalize(
-              modal.querySelector("#compassu-edit-institution").value,
-            ),
-            institutionType = modal.querySelector(
-              "#compassu-edit-institution-type",
-            ).value;
+            status = modal.querySelector("[data-edit-status]");
           saveButton.disabled = true;
           saveButton.textContent = "Saving…";
           status.textContent = "";
-          const ok = await saveInstitution(email, institution, institutionType);
-          if (!ok) {
+          try {
+            const payload = {
+              action: "update",
+              user_id: user.id,
+              first_name: modal.querySelector("#compassu-edit-first-name")
+                .value,
+              last_name: modal.querySelector("#compassu-edit-last-name").value,
+              email: modal.querySelector("#compassu-edit-email").value,
+              state: modal.querySelector("#compassu-edit-state").value,
+              graduation_year: modal.querySelector(
+                "#compassu-edit-graduation-year",
+              ).value,
+              institution: modal.querySelector("#compassu-edit-institution")
+                .value,
+              institution_type: modal.querySelector(
+                "#compassu-edit-institution-type",
+              ).value,
+              is_suspended:
+                modal.querySelector("#compassu-edit-access").value ===
+                "suspended",
+            };
+            const response = await originalFetch("/api/admin/account-update", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${session.access_token}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(payload),
+            });
+            const body = await response.json();
+            if (!response.ok)
+              throw new Error(
+                body?.error || "Unable to save the account update.",
+              );
+            const updated = body.account;
+            institutionCache = {
+              ...institutionCache,
+              [String(updated.email).toLowerCase()]: updated.institution || "",
+            };
+            institutionTypeCache = {
+              ...institutionTypeCache,
+              [String(updated.email).toLowerCase()]:
+                updated.institution_type || "high_school",
+            };
+            writeCache(institutionCache);
+            writeTypeCache(institutionTypeCache);
+            window.dispatchEvent(
+              new CustomEvent("compassu:institutions-updated"),
+            );
+            const refresh = [...document.querySelectorAll("button")].find(
+              (button) => button.textContent?.includes("Refresh Dashboard"),
+            );
+            if (refresh && !refresh.disabled) refresh.click();
+            closeEditModal();
+          } catch (error) {
             saveButton.disabled = false;
             saveButton.textContent = "Save Changes";
             status.className = "error adminNotice";
             status.textContent =
+              error.message ||
               "Unable to save the account update. Please try again.";
-            return;
           }
-          overviewUsers = overviewUsers.map((u) =>
-            String(u.email || "").toLowerCase() === email
-              ? { ...u, institution }
-              : u,
-          );
-          scheduleEnhance();
-          closeEditModal();
         });
     }
 
@@ -471,9 +526,20 @@ export default function AdminInstitutionEnhancer() {
         firstHeader.insertAdjacentElement("afterend", th);
         changed = true;
       }
-      if(headerRow&&!headerRow.querySelector("[data-compassu-institution-type-head]")){
-        const institutionHead=headerRow.querySelector("[data-compassu-institution-head]");
-        if(institutionHead){const th=document.createElement("th");th.textContent="Institution Type";th.dataset.compassuInstitutionTypeHead="1";institutionHead.insertAdjacentElement("afterend",th);changed=true}
+      if (
+        headerRow &&
+        !headerRow.querySelector("[data-compassu-institution-type-head]")
+      ) {
+        const institutionHead = headerRow.querySelector(
+          "[data-compassu-institution-head]",
+        );
+        if (institutionHead) {
+          const th = document.createElement("th");
+          th.textContent = "Institution Type";
+          th.dataset.compassuInstitutionTypeHead = "1";
+          institutionHead.insertAdjacentElement("afterend", th);
+          changed = true;
+        }
       }
       table.querySelectorAll("tbody tr").forEach((row) => {
         const firstCell = row.querySelector("td");
@@ -494,9 +560,22 @@ export default function AdminInstitutionEnhancer() {
             changed = true;
           }
         }
-        let typeCell=row.querySelector("[data-compassu-institution-type-cell]");
-        if(!typeCell&&td){typeCell=document.createElement("td");typeCell.dataset.compassuInstitutionTypeCell="1";td.insertAdjacentElement("afterend",typeCell);changed=true}
-        if(typeCell){const nextType=getInstitutionTypeForRow(row);if(typeCell.textContent!==nextType){typeCell.textContent=nextType;changed=true}}
+        let typeCell = row.querySelector(
+          "[data-compassu-institution-type-cell]",
+        );
+        if (!typeCell && td) {
+          typeCell = document.createElement("td");
+          typeCell.dataset.compassuInstitutionTypeCell = "1";
+          td.insertAdjacentElement("afterend", typeCell);
+          changed = true;
+        }
+        if (typeCell) {
+          const nextType = getInstitutionTypeForRow(row);
+          if (typeCell.textContent !== nextType) {
+            typeCell.textContent = nextType;
+            changed = true;
+          }
+        }
         const actions = row.querySelector(".adminRowActions");
         if (actions && !actions.querySelector("[data-compassu-edit-account]")) {
           const edit = document.createElement("button");
