@@ -146,24 +146,16 @@ export default function AdminInstitutionEnhancer() {
       const session = readSession();
       if (!session?.access_token) return false;
       try {
-        const response = await originalFetch(
-          `${SUPABASE_URL}/rest/v1/account_institutions`,
-          {
-            method: "POST",
-            headers: {
-              apikey: SUPABASE_KEY,
-              Authorization: `Bearer ${session.access_token}`,
-              "Content-Type": "application/json",
-              Prefer: "resolution=merge-duplicates,return=minimal",
-            },
-            body: JSON.stringify({
-              email,
-              institution,
-              institution_type: institutionType,
-              updated_at: new Date().toISOString(),
-            }),
+        const response = await originalFetch("/api/admin/institution-sync50k", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
           },
-        );
+          body: JSON.stringify({
+            assignments: [{ email, institution, institution_type: institutionType }],
+          }),
+        });
         return response.ok;
       } catch (error) {
         console.error(
@@ -352,6 +344,10 @@ export default function AdminInstitutionEnhancer() {
       );
       return normalize(user?.institution || institutionCache[email]) || "—";
     }
+    function getInstitutionTypeForRow(row) {
+      const type=institutionTypeCache[getEmailForRow(row)]||"high_school";
+      return type==="community_college"?"Community college":type==="university"?"College / university":"High school";
+    }
     function allInstitutions() {
       return [
         ...new Set(
@@ -376,7 +372,7 @@ export default function AdminInstitutionEnhancer() {
       document.getElementById("compassu-account-edit-modal")?.remove();
     }
 
-    function openEditModal(row) {
+    async function openEditModal(row) {
       closeEditModal();
       const email = getEmailForRow(row);
       if (!email) return;
@@ -384,6 +380,15 @@ export default function AdminInstitutionEnhancer() {
         overviewUsers.find(
           (u) => String(u.email || "").toLowerCase() === email,
         ) || {};
+      const session=readSession();
+      if(session?.access_token){
+        try{
+          const response=await originalFetch("/api/admin/institution-lookup50k",{method:"POST",headers:{Authorization:`Bearer ${session.access_token}`,"Content-Type":"application/json"},body:JSON.stringify({emails:[email]})});
+          const body=await response.json();
+          const saved=body?.institution_details?.[email];
+          if(response.ok&&saved){institutionCache={...institutionCache,[email]:saved.institution};institutionTypeCache={...institutionTypeCache,[email]:saved.institution_type||"high_school"};writeCache(institutionCache);writeTypeCache(institutionTypeCache)}
+        }catch(error){console.error("CompassU institution details could not be loaded",error)}
+      }
       const displayName =
         [user.first_name, user.last_name].filter(Boolean).join(" ") ||
         row
@@ -466,6 +471,10 @@ export default function AdminInstitutionEnhancer() {
         firstHeader.insertAdjacentElement("afterend", th);
         changed = true;
       }
+      if(headerRow&&!headerRow.querySelector("[data-compassu-institution-type-head]")){
+        const institutionHead=headerRow.querySelector("[data-compassu-institution-head]");
+        if(institutionHead){const th=document.createElement("th");th.textContent="Institution Type";th.dataset.compassuInstitutionTypeHead="1";institutionHead.insertAdjacentElement("afterend",th);changed=true}
+      }
       table.querySelectorAll("tbody tr").forEach((row) => {
         const firstCell = row.querySelector("td");
         let td =
@@ -485,6 +494,9 @@ export default function AdminInstitutionEnhancer() {
             changed = true;
           }
         }
+        let typeCell=row.querySelector("[data-compassu-institution-type-cell]");
+        if(!typeCell&&td){typeCell=document.createElement("td");typeCell.dataset.compassuInstitutionTypeCell="1";td.insertAdjacentElement("afterend",typeCell);changed=true}
+        if(typeCell){const nextType=getInstitutionTypeForRow(row);if(typeCell.textContent!==nextType){typeCell.textContent=nextType;changed=true}}
         const actions = row.querySelector(".adminRowActions");
         if (actions && !actions.querySelector("[data-compassu-edit-account]")) {
           const edit = document.createElement("button");
