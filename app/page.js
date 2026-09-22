@@ -105,6 +105,7 @@ export default function Home() {
     [selectedMajor, setSelectedMajor] = useState(null),
     [careers, setCareers] = useState([]),
     [colleges, setColleges] = useState([]),
+    [homePrograms, setHomePrograms] = useState([]),
     [traits, setTraits] = useState([]),
     [recommendationScope, setRecommendationScope] = useState({ mode: "open" }),
     [openCareer, setOpenCareer] = useState(null),
@@ -463,6 +464,101 @@ export default function Home() {
       setCareers(resolvedCareerRows);
       setColleges(Array.isArray(collegeRows) ? collegeRows : []);
       setTraits(Array.isArray(traitRows) ? traitRows : []);
+
+      let alignedHomePrograms = [];
+      if (scope?.mode === "home_institution" && scope?.institution_id) {
+        try {
+          const offeredRows = await fetch(
+            `${SUPABASE_URL}/rest/v1/institution_majors?institution_id=eq.${scope.institution_id}&select=major_id,completions_total,award_levels,source_year&limit=500`,
+            { headers },
+          ).then((r) => r.json());
+          const offeredIds = (Array.isArray(offeredRows) ? offeredRows : [])
+            .map((row) => Number(row.major_id))
+            .filter(Boolean);
+          if (offeredIds.length) {
+            const [majorRows, weightRows] = await Promise.all([
+              fetch(
+                `${SUPABASE_URL}/rest/v1/majors?id=in.(${offeredIds.join(",")})&select=id,name,cip_code&limit=500`,
+                { headers },
+              ).then((r) => r.json()),
+              fetch(
+                `${SUPABASE_URL}/rest/v1/major_trait_weights?major_id=in.(${[Number(major.major_id), ...offeredIds].join(",")})&select=major_id,trait_code,weight&limit=5000`,
+                { headers },
+              ).then((r) => r.json()),
+            ]);
+            const majorById = new Map(
+              (Array.isArray(majorRows) ? majorRows : []).map((row) => [
+                Number(row.id),
+                row,
+              ]),
+            );
+            const offeredById = new Map(
+              (Array.isArray(offeredRows) ? offeredRows : []).map((row) => [
+                Number(row.major_id),
+                row,
+              ]),
+            );
+            const vectors = new Map();
+            for (const row of Array.isArray(weightRows) ? weightRows : []) {
+              const id = Number(row.major_id);
+              if (!vectors.has(id)) vectors.set(id, new Map());
+              vectors.get(id).set(row.trait_code, Number(row.weight) || 0);
+            }
+            const selectedVector = vectors.get(Number(major.major_id)) || new Map();
+            const cosine = (left, right) => {
+              let dot = 0;
+              let leftSq = 0;
+              let rightSq = 0;
+              for (const value of left.values()) leftSq += value * value;
+              for (const value of right.values()) rightSq += value * value;
+              for (const [key, value] of left.entries())
+                dot += value * (right.get(key) || 0);
+              return leftSq && rightSq
+                ? dot / (Math.sqrt(leftSq) * Math.sqrt(rightSq))
+                : 0;
+            };
+            const selectedMajorDetail = await fetch(
+              `${SUPABASE_URL}/rest/v1/majors?id=eq.${major.major_id}&select=id,name,cip_code&limit=1`,
+              { headers },
+            ).then((r) => r.json());
+            const selectedCip = String(selectedMajorDetail?.[0]?.cip_code || "");
+            alignedHomePrograms = offeredIds
+              .map((id) => {
+                const detail = majorById.get(id);
+                const evidence = offeredById.get(id);
+                if (!detail) return null;
+                const exact = id === Number(major.major_id);
+                const sameCipFamily =
+                  selectedCip &&
+                  detail.cip_code &&
+                  String(detail.cip_code).slice(0, 5) === selectedCip.slice(0, 5);
+                const similarity = exact
+                  ? 1
+                  : cosine(selectedVector, vectors.get(id) || new Map());
+                return {
+                  ...detail,
+                  ...evidence,
+                  alignment_score: similarity,
+                  alignment_label: exact
+                    ? "Exact Match"
+                    : sameCipFamily
+                      ? "Related Academic Program"
+                      : "Aligned Home Program",
+                };
+              })
+              .filter((row) => row && (row.alignment_score >= 0.45 || row.alignment_label !== "Aligned Home Program"))
+              .sort(
+                (a, b) =>
+                  Number(b.alignment_score) - Number(a.alignment_score) ||
+                  Number(b.completions_total || 0) - Number(a.completions_total || 0),
+              )
+              .slice(0, 5);
+          }
+        } catch (error) {
+          console.error("Unable to load aligned home-institution programs", error);
+        }
+      }
+      setHomePrograms(alignedHomePrograms);
       setStateFilter("ALL");
       setCollegeType("ALL");
     } finally {
@@ -1174,6 +1270,31 @@ export default function Home() {
                           >
                             Visit home institution website ↗
                           </a>
+                          {homePrograms.length > 0 && (
+                            <div style={{ marginTop: 16 }}>
+                              <b>Programs at Your Home Institution</b>
+                              <div className="small muted" style={{ marginTop: 4, marginBottom: 8 }}>
+                                These programs offered by {recommendationScope.institution || "your home institution"} align most closely with your selected CompassU recommendation, {selectedMajor?.major_name || "this major"}.
+                              </div>
+                              {homePrograms.map((program) => (
+                                <div
+                                  key={program.id}
+                                  className="small"
+                                  style={{ marginTop: 8 }}
+                                >
+                                  <b>{program.name}</b>{" "}
+                                  <span className="collegeTypeTag">
+                                    {program.alignment_label}
+                                  </span>
+                                  {program.completions_total != null && (
+                                    <div className="muted">
+                                      {Number(program.completions_total).toLocaleString()} recent completions
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     ) : (
@@ -1224,6 +1345,26 @@ export default function Home() {
                                 Visit website ↗
                               </a>
                             )}
+                            {recommendationScope.mode === "home_institution" &&
+                              homePrograms.length > 0 && (
+                                <div style={{ marginTop: 16 }}>
+                                  <b>Programs at Your Home Institution</b>
+                                  <div className="small muted" style={{ marginTop: 4, marginBottom: 8 }}>
+                                    Programs offered here that align most closely with {selectedMajor?.major_name || "your selected CompassU recommendation"}.
+                                  </div>
+                                  {homePrograms.map((program) => (
+                                    <div key={program.id} className="small" style={{ marginTop: 8 }}>
+                                      <b>{program.name}</b>{" "}
+                                      <span className="collegeTypeTag">{program.alignment_label}</span>
+                                      {program.completions_total != null && (
+                                        <div className="muted">
+                                          {Number(program.completions_total).toLocaleString()} recent completions
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                           </div>
                           <div className="small collegeMeta">
                             {row.completions_total != null ? (
