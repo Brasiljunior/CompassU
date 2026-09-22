@@ -26,6 +26,18 @@ test('classroom login retries only HTTP 429 and caps retry loop', () => {
   assert.match(login, /localStorage\.setItem\(["']compassu_session["']/);
 });
 
+test('expired classroom sessions refresh once and persist the rotated tokens', () => {
+  const refresh = section(home, 'async function refreshCompassUSession', 'function authHeaders()');
+  const api = section(home, 'async function api(', 'const money =');
+  assert.match(refresh, /grant_type=refresh_token/);
+  assert.match(refresh, /refresh_token:\s*current\.refresh_token/);
+  assert.match(refresh, /sessionRefreshPromise/);
+  assert.match(refresh, /saveSession\(body\)/);
+  assert.match(refresh, /Please sign in again/);
+  assert.match(api, /response\.status\s*===\s*401/);
+  assert.match(api, /refreshCompassUSession\(getSession\(\),\s*true\)/);
+});
+
 test('assessment resume restores persisted responses and first unanswered question', () => {
   const start = section(home, 'async function startAssessment()', 'async function answer(value)');
   assert.match(start, /status=eq\.in_progress/);
