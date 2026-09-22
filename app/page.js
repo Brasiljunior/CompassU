@@ -28,6 +28,50 @@ function getSession() {
     return null;
   }
 }
+let sessionRefreshPromise = null;
+function saveSession(session) {
+  if (session?.access_token) {
+    localStorage.setItem("compassu_session", JSON.stringify(session));
+  }
+  return session;
+}
+function sessionExpiresSoon(session, leewaySeconds = 60) {
+  if (!session?.access_token) return true;
+  if (!session.expires_at) return false;
+  return Number(session.expires_at) * 1000 <= Date.now() + leewaySeconds * 1000;
+}
+async function refreshCompassUSession(current = getSession(), force = false) {
+  if (!current?.refresh_token) {
+    if (force || sessionExpiresSoon(current)) {
+      localStorage.removeItem("compassu_session");
+      throw new Error("Your CompassU session expired. Please sign in again.");
+    }
+    return current;
+  }
+  if (!force && !sessionExpiresSoon(current)) return current;
+  if (!sessionRefreshPromise) {
+    sessionRefreshPromise = fetch(
+      `${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`,
+      {
+        method: "POST",
+        headers: baseHeaders,
+        body: JSON.stringify({ refresh_token: current.refresh_token }),
+      },
+    )
+      .then(async (response) => {
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok || !body?.access_token) {
+          localStorage.removeItem("compassu_session");
+          throw new Error("Your CompassU session expired. Please sign in again.");
+        }
+        return saveSession(body);
+      })
+      .finally(() => {
+        sessionRefreshPromise = null;
+      });
+  }
+  return sessionRefreshPromise;
+}
 function authHeaders() {
   const s = getSession();
   return {
@@ -38,10 +82,17 @@ function authHeaders() {
 async function api(path, options = {}) {
   if (!SUPABASE_URL || !SUPABASE_KEY)
     throw new Error("CompassU environment variables are not configured.");
-  const response = await fetch(`${SUPABASE_URL}${path}`, {
-    ...options,
-    headers: { ...authHeaders(), ...(options.headers || {}) },
-  });
+  await refreshCompassUSession();
+  const request = () =>
+    fetch(`${SUPABASE_URL}${path}`, {
+      ...options,
+      headers: { ...authHeaders(), ...(options.headers || {}) },
+    });
+  let response = await request();
+  if (response.status === 401 && getSession()?.refresh_token) {
+    await refreshCompassUSession(getSession(), true);
+    response = await request();
+  }
   const text = await response.text();
   let body = null;
   try {
@@ -116,6 +167,8 @@ export default function Home() {
     [jobLocation, setJobLocation] = useState("");
   async function loadRecommendationScope(current = session) {
     try {
+      current = await refreshCompassUSession(current);
+      setSession(current);
       const response = await fetch("/api/account/recommendation-scope", {
         headers: { Authorization: `Bearer ${current.access_token}` },
         cache: "no-store",
@@ -639,12 +692,21 @@ export default function Home() {
   useEffect(() => {
     const stored = getSession();
     if (stored) {
-      setSession(stored);
-      setView("dashboard");
-      loadRecommendationScope(stored).then((scope) =>
-        loadResults(stored, scope),
-      );
-      loadFavorites(stored);
+      refreshCompassUSession(stored)
+        .then((current) => {
+          setSession(current);
+          setView("dashboard");
+          loadRecommendationScope(current).then((scope) =>
+            loadResults(current, scope),
+          );
+          loadFavorites(current);
+        })
+        .catch((error) => {
+          setSession(null);
+          setAuthMode("login");
+          setView("auth");
+          setMessage(error.message);
+        });
     }
   }, []);
   const filteredColleges = useMemo(
