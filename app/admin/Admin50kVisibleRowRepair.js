@@ -25,7 +25,7 @@ export default function Admin50kVisibleRowRepair(){
       if(!selectHead)return;
       while(head.firstChild)head.removeChild(head.firstChild);
       head.appendChild(selectHead);
-      for(const label of ['Institution','First Name','Last Name','Email','Created','Last Sign In','Survey Status','Access','Actions']){
+      for(const label of ['Institution','Institution Type','First Name','Last Name','Email','Created','Last Sign In','Survey Status','Access','Actions']){
         const th=document.createElement('th');
         th.textContent=label;
         th.dataset.compassuCanonicalHead=label.toLowerCase().replace(/\s+/g,'-');
@@ -59,7 +59,11 @@ export default function Admin50kVisibleRowRepair(){
       }
       if(!created||!lastSignIn||!survey||!access||!actions)return;
       while(row.firstChild)row.removeChild(row.firstChild);
-      if(selectCell)row.appendChild(selectCell);row.appendChild(canonicalCell(user.institution,'institution'));row.appendChild(canonicalCell(user.first_name,'first-name'));row.appendChild(canonicalCell(user.last_name,'last-name'));row.appendChild(canonicalCell(String(user.email||'').toLowerCase(),'email'));row.appendChild(created);row.appendChild(lastSignIn);row.appendChild(survey);row.appendChild(access);row.appendChild(actions);
+      if(selectCell)row.appendChild(selectCell);
+      row.appendChild(canonicalCell(user.institution,'institution'));
+      const institutionType=user.institution_type==='community_college'?'Community college':user.institution_type==='university'?'College / university':'High school';
+      row.appendChild(canonicalCell(institutionType,'institution-type'));
+      row.appendChild(canonicalCell(user.first_name,'first-name'));row.appendChild(canonicalCell(user.last_name,'last-name'));row.appendChild(canonicalCell(String(user.email||'').toLowerCase(),'email'));row.appendChild(created);row.appendChild(lastSignIn);row.appendChild(survey);row.appendChild(access);row.appendChild(actions);
       row.dataset.compassuAccountId=String(user.id||user.user_id||'');row.dataset.compassuAccountEmail=String(user.email||'').toLowerCase();row.dataset.compassuCanonical50k='1';
     }
 
