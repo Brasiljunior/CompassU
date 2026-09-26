@@ -8,6 +8,7 @@ import LegalConsentEnhancer from './LegalConsentEnhancer';
 import AccessibilityEnhancer from './AccessibilityEnhancer';
 import PersonalityCompassPanel from './PersonalityCompassPanel';
 import ContactUs from './ContactUs';
+import InviteOnlyAccessGuard from './InviteOnlyAccessGuard';
 
 export const metadata = {
   metadataBase: new URL('https://getcompassu.com'),
@@ -25,6 +26,7 @@ export default function RootLayout({ children }) {
         <AuthRedirectGuard />
         <LegalConsentEnhancer />
         <AccessibilityEnhancer />
+        <InviteOnlyAccessGuard />
         {children}
         <PersonalityCompassPanel />
         <MajorDescriptions />
