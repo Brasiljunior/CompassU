@@ -82,9 +82,21 @@ Deno.serve(async(req)=>{
       if(!email)return json({error:'Email is required.'},400);
       const exists=await rpc('admin_account_email_exists_50k',{p_email:email});
       if(exists)return json({error:'This email already has a CompassU account.'},409);
+      const institution=String(body.institution||'').trim();
+      const institutionType=['high_school','community_college','university'].includes(body.institution_type)?body.institution_type:'high_school';
+      if(!institution)return json({error:'A home institution is required before sending an invitation.'},400);
+      let catalogId=null;
+      if(institutionType!=='high_school'){
+        const matches=await fetch(`${url}/rest/v1/institutions?name=eq.${encodeURIComponent(institution)}&select=id,name&limit=2`,{headers:sh}).then(r=>r.json());
+        if(!Array.isArray(matches)||matches.length!==1)return json({error:`CompassU could not uniquely match "${institution}" to the higher-education catalog. Use the exact catalog institution name before sending the invitation.`},400);
+        catalogId=matches[0].id;
+      }
       const x=await invite(email,String(body.first_name||''),String(body.last_name||''));
-      await audit('invite_user',x.user_id,{email,batch:false});
-      return json({ok:true,message:'Invitation sent.'});
+      const assignment={email,institution,institution_type:institutionType,catalog_institution_id:catalogId,updated_at:new Date().toISOString()};
+      const sr=await fetch(`${url}/rest/v1/account_institutions?on_conflict=email`,{method:'POST',headers:{...sh,Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(assignment)});
+      if(!sr.ok)throw new Error('Invitation was generated but the home institution could not be persisted.');
+      await audit('invite_user',x.user_id,{email,batch:false,institution,institution_type:institutionType,catalog_institution_id:catalogId});
+      return json({ok:true,message:'Invitation sent.',institution,institution_type:institutionType,catalog_institution_id:catalogId});
     }
 
     if(action==='overview'||action==='refresh'){
