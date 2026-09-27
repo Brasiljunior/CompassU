@@ -805,7 +805,7 @@ export async function generateCompassUPdf({
     tx("HOME INSTITUTION", 22, 66, 8.5, C.purple, "bold");
     wr(homeName, 22, 78, 175, 17, C.navy, "bold", 2);
     if (recommendationScope?.institution_website)
-      wr(String(recommendationScope.institution_website).replace(/^https?:\\/\\//, ""), 22, 91, 175, 8, C.blue, "normal", 2);
+      wr(String(recommendationScope.institution_website).replace(/^https?:\/\//, ""), 22, 91, 175, 8, C.blue, "normal", 2);
     tx("PROGRAMS ALIGNED WITH YOUR COMPASSU DIRECTION", 22, 108, 9.5, C.green, "bold");
     if (homePrograms.length) {
       let py = 120;
