@@ -682,6 +682,9 @@ export default function Home() {
         selectedMajor,
         traits,
         careers,
+        colleges: filteredColleges,
+        homePrograms,
+        recommendationScope,
         session,
       });
     } catch (error) {
