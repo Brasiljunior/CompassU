@@ -7,6 +7,9 @@ export async function generateCompassUPdf({
   selectedMajor = null,
   traits = [],
   careers = [],
+  colleges = [],
+  homePrograms = [],
+  recommendationScope = { mode: "open" },
   session = null,
 }) {
   if (!matches.length) return;
@@ -786,6 +789,63 @@ export async function generateCompassUPdf({
   });
   footer(4);
   pdf.addPage();
+  tx("COLLEGE DESTINATIONS", 12, 18, 16.5, C.navy, "bold");
+  line(82, 14, 281, 14, C.purple, 0.8);
+  compass(288, 14, 5.5);
+  const isHomeDestination = recommendationScope?.mode === "home_institution";
+  const homeName = recommendationScope?.institution || "Your Home Institution";
+  wr(
+    isHomeDestination
+      ? `Your CompassU account is associated with ${homeName}. The programs below are drawn from the same home-institution catalog alignment used in your online results for ${sel?.major_name || "your selected major"}.`
+      : `Explore institutions connected with ${sel?.major_name || "your selected CompassU recommendation"}. These destinations use the same program evidence shown in your online CompassU results.`,
+    12, 29, 273, 9.5, C.ink, "normal", 4,
+  );
+  if (isHomeDestination) {
+    box(12, 51, 273, 132, C.lav, 5);
+    tx("HOME INSTITUTION", 22, 66, 8.5, C.purple, "bold");
+    wr(homeName, 22, 78, 175, 17, C.navy, "bold", 2);
+    if (recommendationScope?.institution_website)
+      wr(String(recommendationScope.institution_website).replace(/^https?:\\/\\//, ""), 22, 91, 175, 8, C.blue, "normal", 2);
+    tx("PROGRAMS ALIGNED WITH YOUR COMPASSU DIRECTION", 22, 108, 9.5, C.green, "bold");
+    if (homePrograms.length) {
+      let py = 120;
+      homePrograms.slice(0, 5).forEach((program, i) => {
+        box(22, py, 253, 11, [255, 255, 255], 2);
+        badge(29, py + 5.5, 3.6, [C.purple, C.blue, C.green, C.gold, C.navy][i % 5], String(i + 1));
+        wr(program.name, 37, py + 4.5, 145, 8.3, C.navy, "bold", 2);
+        tx(program.alignment_label || "Aligned Program", 190, py + 7, 7.3, C.purple, "bold");
+        if (program.completions_total != null)
+          tx(`${Number(program.completions_total).toLocaleString()} recent completions`, 268, py + 7, 7.2, C.muted, "normal", { align: "right" });
+        py += 13;
+      });
+    } else {
+      wr(
+        recommendationScope?.configured === false
+          ? "Your home institution is associated with your account, but its CompassU catalog link is not yet configured."
+          : "No aligned catalog programs are currently available for this selected CompassU recommendation.",
+        22, 122, 245, 10, C.muted, "normal", 4,
+      );
+    }
+  } else {
+    const destinationRows = (Array.isArray(colleges) ? colleges : []).slice(0, 8);
+    if (destinationRows.length) {
+      let dy = 52;
+      destinationRows.forEach((row, i) => {
+        const inst = row?.institutions || {};
+        box(12, dy, 273, 15, i % 2 ? C.pale : [255, 255, 255], 3);
+        badge(21, dy + 7.5, 4.2, [C.purple, C.blue, C.green, C.gold][i % 4], String(i + 1));
+        wr(inst.name || "Institution", 30, dy + 5.5, 145, 9, C.navy, "bold", 2);
+        tx([inst.city, inst.state].filter(Boolean).join(", "), 276, dy + 9, 8, C.muted, "normal", { align: "right" });
+        dy += 17;
+      });
+    } else {
+      box(12, 52, 273, 55, C.pale, 4);
+      wr("No college destinations are currently available for this selected major. Return to CompassU to explore another recommendation or updated program evidence.", 22, 70, 250, 10, C.muted, "normal", 4);
+    }
+  }
+  tx("College and program information can change. Confirm current offerings and requirements directly with the institution.", 148.5, 193, 7.2, C.muted, "italic", { align: "center" });
+  footer(5);
+  pdf.addPage();
   tx("TURN DIRECTION INTO ACTION", 12, 18, 16.5, C.navy, "bold");
   line(112, 14, 281, 14, C.purple, 0.8);
   box(12, 28, 151, 115, C.pale, 4);
@@ -867,6 +927,6 @@ export async function generateCompassUPdf({
     4,
   );
   tx("getcompassu.com  →", 198, 189, 10.5, [255, 255, 255], "bold");
-  footer(5);
+  footer(6);
   pdf.save("CompassU-Personalized-Career-Pathway-Results.pdf");
 }
