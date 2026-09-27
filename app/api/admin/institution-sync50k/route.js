@@ -111,6 +111,34 @@ export async function POST(request) {
     ];
     if (!assignments.length) return NextResponse.json({ ok: true, synced: 0 });
 
+    // Resolve higher-education home institutions to the catalog at persistence time.
+    // Recommendation scoping depends on catalog_institution_id; never leave an
+    // invited community-college/university account silently in open mode.
+    for (const assignment of assignments) {
+      if (assignment.institution_type === "high_school") {
+        assignment.catalog_institution_id = null;
+        continue;
+      }
+      const catalogUrl = new URL(`${SUPABASE_URL}/rest/v1/institutions`);
+      catalogUrl.searchParams.set("name", `eq.${assignment.institution}`);
+      catalogUrl.searchParams.set("select", "id,name");
+      catalogUrl.searchParams.set("limit", "2");
+      const catalogResponse = await fetch(catalogUrl, {
+        headers: serviceHeaders,
+        cache: "no-store",
+      });
+      const matches = await readJson(catalogResponse);
+      if (!catalogResponse.ok || !Array.isArray(matches) || matches.length !== 1) {
+        return NextResponse.json(
+          {
+            error: `CompassU could not uniquely match "${assignment.institution}" to the higher-education catalog. Select the exact catalog institution before sending the invitation.`,
+          },
+          { status: 400 },
+        );
+      }
+      assignment.catalog_institution_id = matches[0].id;
+    }
+
     const saveResponse = await fetch(
       `${SUPABASE_URL}/rest/v1/account_institutions?on_conflict=email`,
       {
