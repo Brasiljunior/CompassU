@@ -74,6 +74,8 @@ Deno.serve(async(req)=>{
       const rr=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${resend}`,'Content-Type':'application/json'},body:JSON.stringify({from,to:[email],subject:'You’re Invited to CompassU 🧭',html})});
       const rd=await rr.json();
       if(!rr.ok)throw new Error(rd?.message||'Unable to send invitation');
+      const tracked=await fetch(`${url}/rest/v1/invitation_reminders?on_conflict=email`,{method:'POST',headers:{...sh,Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({email,user_id:d?.user?.id||d?.id||null,first_name,invited_at:new Date().toISOString(),reminders_sent:0,claimed_at:null})});
+      if(!tracked.ok)throw new Error('Invitation was emailed, but reminder scheduling failed. Check the invitation reminder migration.');
       return {user_id:d?.user?.id||d?.id||null,email,resend_id:rd?.id||null};
     };
 
