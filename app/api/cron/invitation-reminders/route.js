@@ -12,7 +12,8 @@ export async function GET(request) {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const resendKey = process.env.RESEND_API_KEY;
   if (!base || !key || !resendKey) return Response.json({ error: 'Reminder service is not configured' }, { status: 503 });
-  const headers = { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' };
+  const headers = { apikey: key, 'Content-Type': 'application/json' };
+  if (!key.startsWith('sb_secret_')) headers.Authorization = `Bearer ${key}`;
   const app = (process.env.COMPASSU_APP_URL || 'https://getcompassu.com').replace(/\/$/, '');
   const from = process.env.COMPASSU_FROM_EMAIL || 'CompassU <results@getcompassu.com>';
   const claim = await fetch(`${base}/rest/v1/rpc/claim_invitation_reminders`, { method: 'POST', headers, body: JSON.stringify({ p_limit: 100 }), cache: 'no-store' });
