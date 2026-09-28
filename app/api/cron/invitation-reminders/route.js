@@ -9,7 +9,7 @@ export async function GET(request) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
   const base = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://xvvgalifibyqwebasalx.supabase.co';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   const resendKey = process.env.RESEND_API_KEY;
   if (!base || !key || !resendKey) return Response.json({ error: 'Reminder service is not configured' }, { status: 503 });
   const headers = { apikey: key, 'Content-Type': 'application/json' };
