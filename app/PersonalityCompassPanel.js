@@ -10,34 +10,50 @@ export default function PersonalityCompassPanel(){
  const[traits,setTraits]=useState([]);
  useEffect(()=>{
   let cancelled=false;
+  let lastAttemptId=null;
   async function load(){
    try{
     const session=JSON.parse(localStorage.getItem('compassu_session')||'null');
-    if(!session?.user?.id||!session?.access_token)return;
+    if(!session?.user?.id||!session?.access_token){if(!cancelled)setTraits([]);return;}
     const headers={apikey:SUPABASE_KEY,Authorization:`Bearer ${session.access_token}`};
-    const attemptsResponse=await fetch(`${SUPABASE_URL}/rest/v1/assessment_attempts?user_id=eq.${session.user.id}&status=eq.completed&select=id&order=completed_at.desc&limit=1`,{headers});
+    const attemptsResponse=await fetch(`${SUPABASE_URL}/rest/v1/assessment_attempts?user_id=eq.${session.user.id}&status=eq.completed&select=id&order=completed_at.desc&limit=1`,{headers,cache:'no-store'});
     if(!attemptsResponse.ok)throw new Error(`Attempt lookup failed (${attemptsResponse.status})`);
     const attempts=await attemptsResponse.json();
     if(!attempts?.[0]?.id)return;
-    const questionsResponse=await fetch(`${SUPABASE_URL}/rest/v1/assessment_questions?question_number=gte.36&question_number=lte.50&select=id,question_number`,{headers});
+    const attemptId=String(attempts[0].id);
+    const questionsResponse=await fetch(`${SUPABASE_URL}/rest/v1/assessment_questions?question_number=gte.36&question_number=lte.50&select=id,question_number`,{headers,cache:'no-store'});
     if(!questionsResponse.ok)throw new Error(`Personality question lookup failed (${questionsResponse.status})`);
     const questions=await questionsResponse.json();
     if(!Array.isArray(questions)||!questions.length)return;
     const numberById=new Map(questions.map(q=>[String(q.id),Number(q.question_number)]));
     const ids=questions.map(q=>q.id).join(',');
-    const responsesResponse=await fetch(`${SUPABASE_URL}/rest/v1/assessment_responses?attempt_id=eq.${attempts[0].id}&question_id=in.(${ids})&select=question_id,response_value`,{headers});
+    const responsesResponse=await fetch(`${SUPABASE_URL}/rest/v1/assessment_responses?attempt_id=eq.${attemptId}&question_id=in.(${ids})&select=question_id,response_value`,{headers,cache:'no-store'});
     if(!responsesResponse.ok)throw new Error(`Personality response lookup failed (${responsesResponse.status})`);
     const rows=await responsesResponse.json();
     const responses=(Array.isArray(rows)?rows:[]).map(r=>({question_number:numberById.get(String(r.question_id)),value:Number(r.response_value?.value)})).filter(r=>Number.isFinite(r.question_number)&&Number.isFinite(r.value));
     const top=calculatePersonalityCompass(responses);
-    if(top.length>=3){try{localStorage.setItem('compassu_personality_traits',JSON.stringify(top));}catch{}}
+    if(top.length>=3){try{localStorage.setItem('compassu_personality_traits',JSON.stringify(top));sessionStorage.setItem('compassu_personality_traits',JSON.stringify(top));}catch{}}
+    lastAttemptId=attemptId;
     if(!cancelled)setTraits(top);
    }catch(error){console.error('Personality Compass could not load',error)}
   }
   load();
   const refresh=()=>load();
+  const interval=window.setInterval(async()=>{
+   try{
+    const session=JSON.parse(localStorage.getItem('compassu_session')||'null');
+    if(!session?.user?.id||!session?.access_token)return;
+    const headers={apikey:SUPABASE_KEY,Authorization:`Bearer ${session.access_token}`};
+    const response=await fetch(`${SUPABASE_URL}/rest/v1/assessment_attempts?user_id=eq.${session.user.id}&status=eq.completed&select=id&order=completed_at.desc&limit=1`,{headers,cache:'no-store'});
+    if(!response.ok)return;
+    const attempts=await response.json();
+    const currentId=attempts?.[0]?.id?String(attempts[0].id):null;
+    if(currentId&&currentId!==lastAttemptId)load();
+   }catch{}
+  },2000);
   window.addEventListener('focus',refresh);
-  return()=>{cancelled=true;window.removeEventListener('focus',refresh)};
+  window.addEventListener('storage',refresh);
+  return()=>{cancelled=true;window.clearInterval(interval);window.removeEventListener('focus',refresh);window.removeEventListener('storage',refresh)};
  },[]);
  if(!traits.length)return null;
  return <section className="personalityCompass" aria-labelledby="personality-compass-title">
