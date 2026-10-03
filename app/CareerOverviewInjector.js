@@ -8,7 +8,7 @@ export default function CareerOverviewInjector(){
     let timer=null;
     const updateLocalOpenings=async(card,location,status)=>{
       if(!location)return;
-      const careers=[...card.querySelectorAll('.career')];
+      const careers=[...card.querySelectorAll('.career')].slice(0,5);
       status.textContent=`Loading state labor-market projections for ${location}…`;
       let updated=0;
       let area='';
@@ -44,7 +44,10 @@ export default function CareerOverviewInjector(){
         : `Location applied: ${location}. No matching state projection was returned for these careers, so U.S. BLS openings remain displayed.`;
     };
     const apply=()=>{
-      document.querySelectorAll('.career').forEach(card=>{
+      const careerCards=[...document.querySelectorAll('.career')];
+      careerCards.forEach((card,index)=>{
+        card.style.display=index<5?'':'none';
+        if(index>=5)return;
         const toggle=card.querySelector('.careerToggle');
         const title=toggle?.querySelector('b')?.textContent?.trim();
         const host=toggle?.querySelector('.topbar > div');
