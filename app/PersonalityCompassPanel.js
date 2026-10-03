@@ -70,5 +70,27 @@ export default function PersonalityCompassPanel(){
     <div className="personalityScoreLabel">Response alignment <b>{trait.score}%</b></div>
    </article>)}</div>
   </div>
+  <style jsx>{`
+   .personalityCompass{max-width:1180px;margin:18px auto 0;padding:0 20px 18px}
+   .personalityCompassInner{background:#fff;border:1px solid #e7eaf0;border-radius:18px;padding:24px;box-shadow:0 8px 24px rgba(27,39,69,.035)}
+   .personalityCompassHeading{margin-bottom:20px}
+   .personalityCompassHeading h2{margin:12px 0 8px;font-size:24px;line-height:1.2;letter-spacing:-.4px;color:#172033}
+   .personalityCompassHeading p{margin:0;max-width:900px;color:#667085;font-size:14px;line-height:1.65}
+   .eyebrow{display:inline-flex;background:#eef3ff;color:#2f6fed;font-weight:800;border-radius:999px;padding:7px 11px;font-size:12px}
+   .personalityTraitGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+   .personalityTraitCard{position:relative;display:flex;flex-direction:column;min-height:250px;padding:20px;border:1px solid #e7eaf0;border-radius:16px;background:linear-gradient(145deg,#fff,#f9fbff);box-shadow:0 6px 18px rgba(27,39,69,.04);overflow:hidden}
+   .personalityTraitCard:before{content:'';position:absolute;left:0;right:0;top:0;height:4px;background:linear-gradient(90deg,#2f6fed,#6f5cff,#f4b740)}
+   .personalityTraitTop{display:flex;align-items:flex-start;gap:12px;margin-bottom:14px}
+   .personalityRank{flex:0 0 36px;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:#eef3ff;color:#2f6fed;font-weight:850}
+   .personalityTraitTop h3{margin:1px 0 5px;font-size:18px;line-height:1.25;color:#172033}
+   .personalityStrength{display:inline-flex;padding:4px 8px;border-radius:999px;background:#ecfdf3;color:#19764b;font-size:11px;font-weight:800}
+   .personalityTraitCard>p{margin:0 0 18px;color:#475467;font-size:14px;line-height:1.6;flex:1}
+   .personalityBar{height:8px;background:#edf0f5;border-radius:999px;overflow:hidden;margin-top:auto}
+   .personalityBar div{height:100%;border-radius:999px;background:linear-gradient(90deg,#2f6fed,#6f5cff,#f4b740)}
+   .personalityScoreLabel{display:flex;justify-content:space-between;gap:12px;margin-top:9px;color:#667085;font-size:12px}
+   .personalityScoreLabel b{color:#172033;font-size:13px}
+   @media(max-width:900px){.personalityTraitGrid{grid-template-columns:1fr}.personalityTraitCard{min-height:0}}
+   @media(max-width:600px){.personalityCompass{padding:0 14px 14px}.personalityCompassInner{padding:18px}.personalityCompassHeading h2{font-size:22px}.personalityTraitCard{padding:17px}}
+  `}</style>
  </section>;
 }
