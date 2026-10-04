@@ -151,13 +151,17 @@ async function loadCollegeDestinations(url, headers, singlePage = false) {
   }
 }
 
+const isPublicAssociateOption = (row) =>
+  [1, 4].includes(Number(row.institutions?.sector)) &&
+  Array.isArray(row.award_levels) && row.award_levels.some((level) => Number(level) === 3);
+
 function addTransferStartingPoints(exactRows, transferRows, state, type, mode) {
   if (mode !== "open" || type !== "community") return exactRows;
   const seen = new Set(exactRows.map((row) => Number(row.institutions?.id)));
   const supplemental = transferRows.filter((row) => {
     const inst = row.institutions;
     const id = Number(inst?.id);
-    if (!id || seen.has(id) || institutionType(inst) !== "community" ||
+    if (!id || seen.has(id) || !isPublicAssociateOption(row) ||
         (state !== "ALL" && inst.state !== state)) return false;
     seen.add(id);
     return true;
@@ -752,7 +756,8 @@ export default function Home() {
         (c) =>
           (stateFilter === "ALL" || c.institutions?.state === stateFilter) &&
           (collegeType === "ALL" ||
-            institutionType(c.institutions) === collegeType),
+            institutionType(c.institutions) === collegeType ||
+            (collegeType === "community" && isPublicAssociateOption(c))),
       ),
     [colleges, stateFilter, collegeType],
   );
@@ -762,13 +767,29 @@ export default function Home() {
     let cancelled = false;
     setTransferStatus("loading");
     const headers = { ...baseHeaders, Authorization: `Bearer ${session.access_token}` };
-    loadCollegeDestinations(
-      `${SUPABASE_URL}/rest/v1/institution_majors?select=completions_total,award_levels,source_year,majors!inner(id,name,cip_code),institutions(id,name,city,state,website,sector,highest_award_level)&majors.cip_code=like.24.01*&award_levels=cs.%5B3%5D&order=completions_total.desc.nullslast,institution_id.asc,major_id.asc`,
-      headers,
-    ).then((rows) => {
+    Promise.all([
+      loadCollegeDestinations(
+        `${SUPABASE_URL}/rest/v1/institution_majors?select=completions_total,award_levels,source_year,majors!inner(id,name,cip_code),institutions(id,name,city,state,website,sector,highest_award_level)&majors.cip_code=like.24.01*&award_levels=cs.%5B3%5D&order=completions_total.desc.nullslast,institution_id.asc,major_id.asc`,
+        headers,
+      ),
+      loadCollegeDestinations(
+        `${SUPABASE_URL}/rest/v1/institutions?select=id,name,city,state,website,sector,highest_award_level,institution_majors!inner(award_levels)&sector=in.(1,4)&institution_majors.award_levels=cs.%5B3%5D&institution_majors.limit=1&order=name.asc,id.asc`,
+        headers,
+      ),
+    ]).then(([generalRows, institutions]) => {
       if (cancelled) return;
-      setTransferColleges(rows.filter((row) => institutionType(row.institutions) === "community")
-        .map((row) => ({ ...row, transfer_starting_point: true })));
+      const communityFirst = (a, b) =>
+        Number(institutionType(b.institutions) === "community") - Number(institutionType(a.institutions) === "community");
+      const general = generalRows.filter(isPublicAssociateOption)
+        .map((row) => ({ ...row, transfer_starting_point: true }))
+        .sort(communityFirst);
+      const associate = institutions.map((inst) => ({
+        institutions: inst,
+        award_levels: inst.institution_majors?.[0]?.award_levels || [],
+        transfer_starting_point: true,
+        associate_starting_point: true,
+      })).filter(isPublicAssociateOption).sort(communityFirst);
+      setTransferColleges([...general, ...associate]);
       setTransferStatus("ready");
     }).catch((error) => {
       if (cancelled) return;
@@ -1353,7 +1374,7 @@ export default function Home() {
                           aria-label="College type"
                         >
                           <option value="ALL">All colleges</option>
-                          <option value="community">Community colleges</option>
+                          <option value="community">Community colleges & associate options</option>
                           <option value="four-year">
                             Four-year colleges & universities
                           </option>
@@ -1381,7 +1402,7 @@ export default function Home() {
                     <div className="small muted mb" role="status">
                       {transferStatus === "loading" ? "Loading general transfer starting points…" :
                        transferStatus === "error" ? "Transfer starting points could not load. Refresh to try again; exact program matches remain available." :
-                       "Exact program matches appear first. General transfer starting points offer an associate-level liberal arts, general studies, or humanities program. Confirm major prerequisites and transfer requirements with the college."}
+                       "Exact program matches appear first, followed by general transfer programs and other public associate-degree starting points. Public colleges that also offer bachelor’s degrees are included when associate-degree evidence is available. Confirm major prerequisites, program availability, and transfer requirements with the college."}
                     </div>
                   )}
                   {displayedColleges.length === 0 && transferStatus === "loading" && collegeType === "community" ? (
@@ -1464,7 +1485,7 @@ export default function Home() {
                               )}
                               {type === "four-year" && (
                                 <span className="collegeTypeTag">
-                                  Four-Year
+                                  {collegeType === "community" && isPublicAssociateOption(row) ? "Public Associate Degree Option" : "Four-Year"}
                                 </span>
                               )}
                             </div>
@@ -1475,9 +1496,9 @@ export default function Home() {
                             </div>
                             {row.transfer_starting_point && (
                               <div className="small" style={{ marginTop: 8 }}>
-                                <span className="collegeTypeTag">General Transfer Starting Point</span>
+                                <span className="collegeTypeTag">{row.associate_starting_point ? "Associate Degree Starting Point" : "General Transfer Starting Point"}</span>
                                 <div className="muted" style={{ marginTop: 4 }}>
-                                  {row.majors?.name || "General transfer degree"}. Confirm a pathway toward {selectedMajor?.major_name || "your recommended major"} with an advisor.
+                                  {row.associate_starting_point ? "Associate-degree offerings are documented in the catalog. Ask an advisor about a suitable starting program and transfer options" : row.majors?.name || "General transfer degree"}. Confirm a pathway toward {selectedMajor?.major_name || "your recommended major"} with an advisor.
                                 </div>
                               </div>
                             )}
@@ -1523,7 +1544,7 @@ export default function Home() {
                                 <span>{row.transfer_starting_point ? "Transfer-program completions" : "2024 completions"}</span>
                               </>
                             ) : (
-                              <span>Program evidence</span>
+                              <span>{row.associate_starting_point ? "Associate-degree evidence" : "Program evidence"}</span>
                             )}
                           </div>
                         </div>
