@@ -740,18 +740,13 @@ export default function Home() {
   const states = useMemo(
     () =>
       [
-        ...new Set(
-          colleges
-            .filter((c) => collegeType === "ALL" || institutionType(c.institutions) === collegeType)
-            .map((c) => c.institutions?.state)
-            .filter(Boolean),
-        ),
+        ...new Set([
+          ...["AK","AL","AR","AZ","CA","CO","CT","DC","DE","FL","GA","HI","IA","ID","IL","IN","KS","KY","LA","MA","MD","ME","MI","MN","MO","MS","MT","NC","ND","NE","NH","NJ","NM","NV","NY","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VA","VT","WA","WI","WV","WY"],
+          ...colleges.map((c) => c.institutions?.state).filter(Boolean),
+        ]),
       ].sort(),
-    [colleges, collegeType],
+    [colleges],
   );
-  useEffect(() => {
-    if (stateFilter !== "ALL" && !states.includes(stateFilter)) setStateFilter("ALL");
-  }, [states, stateFilter]);
   const progress = questions.length
     ? Math.round(((questionIndex + 1) / questions.length) * 100)
     : 0;
@@ -1394,7 +1389,9 @@ export default function Home() {
                             ? "Your home institution is not yet linked to the CompassU college catalog."
                             : recommendationScope.mode === "home_institution"
                               ? `${recommendationScope.institution || "Your home institution"} does not appear to offer this program in the current IPEDS evidence.`
-                              : "No institutions in this category appear in the current program evidence. Try All colleges or another state."}
+                              : stateFilter !== "ALL"
+                                ? `No ${collegeType === "community" ? "community colleges" : collegeType === "four-year" ? "four-year colleges or universities" : "institutions"} in ${stateFilter} appear in the current program evidence for this major. Try another state or college type.`
+                                : "No institutions in this category appear in the current program evidence. Try All colleges or another state."}
                       </div>
                     )
                   ) : (
