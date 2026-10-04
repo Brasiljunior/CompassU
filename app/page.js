@@ -134,6 +134,20 @@ const institutionType = (institution) => {
   return "other";
 };
 
+async function loadCollegeDestinations(url, headers, singlePage = false) {
+  const rows = [];
+  const pageSize = 750;
+  for (let offset = 0; ; offset += pageSize) {
+    const response = await fetch(`${url}&limit=${singlePage ? 1 : pageSize}&offset=${offset}`, { headers });
+    const page = await response.json();
+    if (!response.ok || !Array.isArray(page)) {
+      throw new Error(page?.message || "Unable to load college destinations.");
+    }
+    rows.push(...page);
+    if (singlePage || page.length < pageSize) return rows;
+  }
+}
+
 export default function Home() {
   const [view, setView] = useState("landing"),
     [session, setSession] = useState(null),
@@ -448,7 +462,6 @@ export default function Home() {
         scope?.mode === "home_institution" && scope?.institution_id
           ? `&institution_id=eq.${scope.institution_id}`
           : "";
-      const collegeLimit = homeFilter ? "1" : "750";
       const [careerRows, collegeRows, traitRows] = await Promise.all([
         fetch(
           `${SUPABASE_URL}/rest/v1/major_occupations?major_id=eq.${major.major_id}&select=relevance_weight,occupations(id,name,soc_code,median_salary,salary_year,outlook_percent,typical_education,annual_openings,projection_start_year,projection_end_year,work_experience,on_the_job_training)&order=relevance_weight.desc&limit=12`,
@@ -457,10 +470,11 @@ export default function Home() {
         (scope?.mode === "home_institution" && !scope?.institution_id) ||
         scope?.mode === "unavailable"
           ? Promise.resolve([])
-          : fetch(
-              `${SUPABASE_URL}/rest/v1/institution_majors?major_id=eq.${major.major_id}${homeFilter}&select=completions_total,award_levels,source_year,institutions(id,name,city,state,website,sector,highest_award_level)&order=completions_total.desc.nullslast&limit=${collegeLimit}`,
-              { headers },
-            ).then((r) => r.json()),
+          : loadCollegeDestinations(
+              `${SUPABASE_URL}/rest/v1/institution_majors?major_id=eq.${major.major_id}${homeFilter}&select=completions_total,award_levels,source_year,institutions(id,name,city,state,website,sector,highest_award_level)&order=completions_total.desc.nullslast,institution_id.asc`,
+              headers,
+              Boolean(homeFilter),
+            ),
         currentAttemptId
           ? fetch(`${SUPABASE_URL}/rest/v1/rpc/get_major_explanation`, {
               method: "POST",
@@ -726,10 +740,18 @@ export default function Home() {
   const states = useMemo(
     () =>
       [
-        ...new Set(colleges.map((c) => c.institutions?.state).filter(Boolean)),
+        ...new Set(
+          colleges
+            .filter((c) => collegeType === "ALL" || institutionType(c.institutions) === collegeType)
+            .map((c) => c.institutions?.state)
+            .filter(Boolean),
+        ),
       ].sort(),
-    [colleges],
+    [colleges, collegeType],
   );
+  useEffect(() => {
+    if (stateFilter !== "ALL" && !states.includes(stateFilter)) setStateFilter("ALL");
+  }, [states, stateFilter]);
   const progress = questions.length
     ? Math.round(((questionIndex + 1) / questions.length) * 100)
     : 0;
@@ -1305,7 +1327,7 @@ export default function Home() {
                         >
                           <option value="ALL">All states</option>
                           {states.map((s) => (
-                            <option key={s}>{s}</option>
+                            <option key={s} value={s}>{s}</option>
                           ))}
                         </select>
                       </div>
