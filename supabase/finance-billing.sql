@@ -123,7 +123,7 @@ declare v_id uuid; r finance_invoices; e finance_expenses; result jsonb; amount 
  end if;
  else raise exception 'Unknown finance operation'; end if;
  if result is null then raise exception 'Record not found'; end if;
- insert into finance_audit(actor,action,record_id,details) values(p_actor,p_action,coalesce(v_id,(result->>'id')::uuid),p_data);
+ insert into finance_audit(actor,action,record_id,details) values(p_actor,p_action,case when p_action='settings' then null else coalesce(v_id,(result->>'id')::uuid) end,p_data);
  return result;
 end $$;
 
