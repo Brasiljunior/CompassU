@@ -127,7 +127,10 @@ const normalizeWebsite = (website) => {
   if (!website) return null;
   return /^https?:\/\//i.test(website) ? website : `https://${website}`;
 };
+// Florida College System membership verified against FLDOE's Our Colleges directory.
+const floridaCollegeSystemIds = new Set([132709,133021,132851,133386,132693,135160,133960,133508,133702,134343,134495,134608,135188,135717,136145,136233,136358,136400,136473,136516,137281,137078,137096,137209,137315,135391,137759,138187]);
 const institutionType = (institution) => {
+  if (floridaCollegeSystemIds.has(Number(institution?.id))) return "community";
   const sector = Number(institution?.sector);
   if (sector === 4) return "community";
   if ([1, 2, 3].includes(sector)) return "four-year";
@@ -146,6 +149,20 @@ async function loadCollegeDestinations(url, headers, singlePage = false) {
     rows.push(...page);
     if (singlePage || page.length < pageSize) return rows;
   }
+}
+
+function addTransferStartingPoints(exactRows, transferRows, state, type, mode) {
+  if (mode !== "open" || type !== "community") return exactRows;
+  const seen = new Set(exactRows.map((row) => Number(row.institutions?.id)));
+  const supplemental = transferRows.filter((row) => {
+    const inst = row.institutions;
+    const id = Number(inst?.id);
+    if (!id || seen.has(id) || institutionType(inst) !== "community" ||
+        (state !== "ALL" && inst.state !== state)) return false;
+    seen.add(id);
+    return true;
+  });
+  return [...exactRows, ...supplemental];
 }
 
 export default function Home() {
@@ -170,6 +187,8 @@ export default function Home() {
     [selectedMajor, setSelectedMajor] = useState(null),
     [careers, setCareers] = useState([]),
     [colleges, setColleges] = useState([]),
+    [transferColleges, setTransferColleges] = useState(null),
+    [transferStatus, setTransferStatus] = useState("idle"),
     [homePrograms, setHomePrograms] = useState([]),
     [traits, setTraits] = useState([]),
     [recommendationScope, setRecommendationScope] = useState({ mode: "open" }),
@@ -736,6 +755,31 @@ export default function Home() {
             institutionType(c.institutions) === collegeType),
       ),
     [colleges, stateFilter, collegeType],
+  );
+  useEffect(() => {
+    if (collegeType !== "community" || recommendationScope.mode !== "open" ||
+        !session?.access_token || transferColleges !== null) return;
+    let cancelled = false;
+    setTransferStatus("loading");
+    const headers = { ...baseHeaders, Authorization: `Bearer ${session.access_token}` };
+    loadCollegeDestinations(
+      `${SUPABASE_URL}/rest/v1/institution_majors?select=completions_total,award_levels,source_year,majors!inner(id,name,cip_code),institutions(id,name,city,state,website,sector,highest_award_level)&majors.cip_code=like.24.01*&award_levels=cs.%5B3%5D&order=completions_total.desc.nullslast,institution_id.asc,major_id.asc`,
+      headers,
+    ).then((rows) => {
+      if (cancelled) return;
+      setTransferColleges(rows.filter((row) => institutionType(row.institutions) === "community")
+        .map((row) => ({ ...row, transfer_starting_point: true })));
+      setTransferStatus("ready");
+    }).catch((error) => {
+      if (cancelled) return;
+      console.error("Unable to load transfer starting points", error);
+      setTransferStatus("error");
+    });
+    return () => { cancelled = true; };
+  }, [collegeType, recommendationScope.mode, session?.access_token, transferColleges]);
+  const displayedColleges = useMemo(
+    () => addTransferStartingPoints(filteredColleges, transferColleges || [], stateFilter, collegeType, recommendationScope.mode),
+    [filteredColleges, transferColleges, stateFilter, collegeType, recommendationScope.mode],
   );
   const states = useMemo(
     () =>
@@ -1333,7 +1377,16 @@ export default function Home() {
                       ? `Programs are shown only for ${recommendationScope.institution || "your home institution"}, based on the institution associated with your CompassU account.`
                       : "Turn direction into destination. Filter between community colleges and four-year colleges and universities, then select an institution to visit its website. IPEDS evidence shows institutions that recently awarded credentials in this program."}
                   </div>
-                  {filteredColleges.length === 0 ? (
+                  {collegeType === "community" && recommendationScope.mode === "open" && (
+                    <div className="small muted mb" role="status">
+                      {transferStatus === "loading" ? "Loading general transfer starting points…" :
+                       transferStatus === "error" ? "Transfer starting points could not load. Refresh to try again; exact program matches remain available." :
+                       "Exact program matches appear first. General transfer starting points offer an associate-level liberal arts, general studies, or humanities program. Confirm major prerequisites and transfer requirements with the college."}
+                    </div>
+                  )}
+                  {displayedColleges.length === 0 && transferStatus === "loading" && collegeType === "community" ? (
+                    <div className="small muted">Searching community college transfer options…</div>
+                  ) : displayedColleges.length === 0 ? (
                     recommendationScope.mode === "home_institution" &&
                     recommendationScope.institution_website ? (
                       <div className="college">
@@ -1395,7 +1448,7 @@ export default function Home() {
                       </div>
                     )
                   ) : (
-                    filteredColleges.slice(0, collegeDisplayLimit).map((row) => {
+                    displayedColleges.slice(0, collegeDisplayLimit).map((row) => {
                       const inst = row.institutions || {},
                         site = normalizeWebsite(inst.website),
                         type = institutionType(inst);
@@ -1420,6 +1473,14 @@ export default function Home() {
                                 .filter(Boolean)
                                 .join(", ")}
                             </div>
+                            {row.transfer_starting_point && (
+                              <div className="small" style={{ marginTop: 8 }}>
+                                <span className="collegeTypeTag">General Transfer Starting Point</span>
+                                <div className="muted" style={{ marginTop: 4 }}>
+                                  {row.majors?.name || "General transfer degree"}. Confirm a pathway toward {selectedMajor?.major_name || "your recommended major"} with an advisor.
+                                </div>
+                              </div>
+                            )}
                             {site && (
                               <a
                                 className="collegeLink"
@@ -1459,7 +1520,7 @@ export default function Home() {
                                     row.completions_total,
                                   ).toLocaleString()}
                                 </b>
-                                <span>2024 completions</span>
+                                <span>{row.transfer_starting_point ? "Transfer-program completions" : "2024 completions"}</span>
                               </>
                             ) : (
                               <span>Program evidence</span>
@@ -1469,9 +1530,9 @@ export default function Home() {
                       );
                     })
                   )}
-                  {filteredColleges.length > collegeDisplayLimit && (
+                  {displayedColleges.length > collegeDisplayLimit && (
                     <div className="muted small more">
-                      Showing {collegeDisplayLimit} of {filteredColleges.length} destinations for
+                      Showing {collegeDisplayLimit} of {displayedColleges.length} destinations for
                       these filters.
                     </div>
                   )}
