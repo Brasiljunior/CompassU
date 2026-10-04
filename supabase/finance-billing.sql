@@ -50,10 +50,12 @@ create index finance_audit_actor on public.finance_audit(actor);
 do $$ declare t text; begin
  foreach t in array array['finance_settings','finance_customers','finance_invoices','finance_expenses','finance_payments','finance_deliveries','finance_audit'] loop
  execute format('alter table public.%I enable row level security',t);
+ execute format('create policy finance_server_only on public.%I for all to anon,authenticated using(false) with check(false)',t);
  execute format('revoke all on public.%I from public, anon, authenticated',t);
  execute format('grant all on public.%I to service_role',t);
  end loop;
 end $$;
+revoke all on sequence public.finance_invoice_number,public.finance_audit_id_seq from public,anon,authenticated;
 grant usage,select on sequence public.finance_invoice_number,public.finance_audit_id_seq to service_role;
 
 create or replace function public.finance_generate_cycle(p_day date, p_automatic boolean default true, p_actor uuid default null)
