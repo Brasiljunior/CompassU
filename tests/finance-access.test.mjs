@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {requireFinanceAdmin} from '../lib/financeServer.js';
+const user='11111111-1111-4111-8111-111111111111';
+const token=aal=>'header.'+Buffer.from(JSON.stringify({sub:user,aal})).toString('base64url')+'.signature';
+const request=aal=>new Request('http://localhost/api/admin/finance',{headers:{Authorization:'Bearer '+token(aal)}});
+test('finance requires login before accessing the database',async()=>{await assert.rejects(requireFinanceAdmin(new Request('http://localhost')),e=>e.status===401)});
+test('finance validates the user and requires MFA before the role lookup',async t=>{let calls=0;t.mock.method(globalThis,'fetch',async()=>{calls++;return Response.json({id:user})});await assert.rejects(requireFinanceAdmin(request('aal1')),e=>e.status===403);assert.equal(calls,1)});
+test('verified master administrator role is read server-side',async t=>{const previous=process.env.SUPABASE_SERVICE_ROLE_KEY;process.env.SUPABASE_SERVICE_ROLE_KEY='sb_secret_test_only';t.after(()=>{if(previous===undefined)delete process.env.SUPABASE_SERVICE_ROLE_KEY;else process.env.SUPABASE_SERVICE_ROLE_KEY=previous});t.mock.method(globalThis,'fetch',async(url,options)=>{if(String(url).includes('/auth/v1/user'))return Response.json({id:user});assert.equal(options.headers.apikey,'sb_secret_test_only');assert.equal(options.headers.Authorization,undefined);return Response.json([{role:'master_admin'}])});assert.equal((await requireFinanceAdmin(request('aal2'))).id,user)});
+test('verified ordinary administrators cannot access finance',async t=>{const previous=process.env.SUPABASE_SERVICE_ROLE_KEY;process.env.SUPABASE_SERVICE_ROLE_KEY='sb_secret_test_only';t.after(()=>{if(previous===undefined)delete process.env.SUPABASE_SERVICE_ROLE_KEY;else process.env.SUPABASE_SERVICE_ROLE_KEY=previous});t.mock.method(globalThis,'fetch',async url=>Response.json(String(url).includes('/auth/v1/user')?{id:user}:[{role:'institution_admin'}]));await assert.rejects(requireFinanceAdmin(request('aal2')),e=>e.status===403)});
