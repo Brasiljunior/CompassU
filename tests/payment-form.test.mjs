@@ -1,0 +1,9 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {validatePayment} from '../lib/paymentForm.mjs';
+import {mutate} from '../lib/financeServer.js';
+const input={kind:'expense',amount:'50.00',paid_on:'2026-10-04',reference:''};
+test('company payments accept optional reference and partial or full balance',()=>{assert.equal(validatePayment(input,'2026-10-04',5000),true);assert.equal(validatePayment({...input,amount:'25'},'2026-10-04',5000),true);});
+test('payment form shows errors for overpayment, invalid totals and dates',()=>{assert.throws(()=>validatePayment({...input,amount:'50.01'},'2026-10-04',5000),/remaining balance/);assert.throws(()=>validatePayment({...input,amount:'0'},'2026-10-04',5000),/payment amount/);assert.throws(()=>validatePayment({...input,paid_on:''},'2026-10-04',5000),/payment date/);assert.throws(()=>validatePayment({...input,paid_on:'2026-10-05'},'2026-10-04',5000),/future/);});
+test('invoice payments still require a reference',()=>assert.throws(()=>validatePayment({...input,kind:'invoice'},'2026-10-04',5000),/reference/));
+test('company payment without a reference reaches the database with a stable request id',async t=>{const old=process.env.SUPABASE_SERVICE_ROLE_KEY;process.env.SUPABASE_SERVICE_ROLE_KEY='sb_secret_test_only';t.after(()=>{if(old===undefined)delete process.env.SUPABASE_SERVICE_ROLE_KEY;else process.env.SUPABASE_SERVICE_ROLE_KEY=old;});t.mock.method(globalThis,'fetch',async(url,opts)=>{const body=JSON.parse(opts.body);assert.equal(body.p_action,'payment');assert.equal(body.p_data.reference,'');assert.equal(body.p_data.amount_cents,5000);assert.equal(body.p_data.request_id,'22222222-2222-4222-8222-222222222222');return Response.json({id:'payment'});});await mutate('payment',{...input,id:'11111111-1111-4111-8111-111111111111',request_id:'22222222-2222-4222-8222-222222222222'},'33333333-3333-4333-8333-333333333333');});
