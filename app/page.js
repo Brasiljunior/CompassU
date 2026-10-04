@@ -712,6 +712,7 @@ export default function Home() {
         });
     }
   }, []);
+  const collegeDisplayLimit = recommendationScope.mode === "open" ? 5 : 12;
   const filteredColleges = useMemo(
     () =>
       colleges.filter(
@@ -1375,7 +1376,7 @@ export default function Home() {
                       </div>
                     )
                   ) : (
-                    filteredColleges.slice(0, 12).map((row) => {
+                    filteredColleges.slice(0, collegeDisplayLimit).map((row) => {
                       const inst = row.institutions || {},
                         site = normalizeWebsite(inst.website),
                         type = institutionType(inst);
@@ -1449,9 +1450,9 @@ export default function Home() {
                       );
                     })
                   )}
-                  {filteredColleges.length > 12 && (
+                  {filteredColleges.length > collegeDisplayLimit && (
                     <div className="muted small more">
-                      Showing 12 of {filteredColleges.length} destinations for
+                      Showing {collegeDisplayLimit} of {filteredColleges.length} destinations for
                       these filters.
                     </div>
                   )}
