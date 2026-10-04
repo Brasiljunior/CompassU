@@ -14,8 +14,8 @@ const tailored={
 };
 
 function cardName(card){const link=[...card.querySelectorAll('*')].find(el=>normalized(el.textContent)==='see why it fits, where it can lead, and where you can study it');const host=link?.parentElement;if(!host)return null;const title=[...host.querySelectorAll('b,strong')][0];return title?.textContent?.trim()||null}
-function renderCard(card,text){const name=cardName(card);if(!name)return;let wrap=card.querySelector('.personalizedMajorDescription');if(!wrap){wrap=document.createElement('div');wrap.className='personalizedMajorDescription';Object.assign(wrap.style,{fontSize:'14px',lineHeight:'1.5',color:'#53657d',marginTop:'7px',marginBottom:'7px',maxWidth:'570px'});const link=[...card.querySelectorAll('*')].find(el=>normalized(el.textContent)==='see why it fits, where it can lead, and where you can study it');link?.parentElement?.insertBefore(wrap,link)}if(wrap)wrap.textContent=text||tailored[normalized(name)]||describe(name,[])}
-function renderFallbacks(){document.querySelectorAll('.match').forEach(card=>{const name=cardName(card);if(name)renderCard(card,tailored[normalized(name)]||describe(name,[]))})}
+function renderCard(card,text){const name=cardName(card);if(!name)return;let wrap=card.querySelector('.personalizedMajorDescription');if(!wrap){wrap=document.createElement('div');wrap.className='personalizedMajorDescription';Object.assign(wrap.style,{fontSize:'14px',lineHeight:'1.5',color:'#53657d',marginTop:'7px',marginBottom:'7px',maxWidth:'570px'});const link=[...card.querySelectorAll('*')].find(el=>normalized(el.textContent)==='see why it fits, where it can lead, and where you can study it');link?.parentElement?.insertBefore(wrap,link)}if(wrap){const nextText=text||tailored[normalized(name)]||describe(name,[]);if(wrap.textContent!==nextText)wrap.textContent=nextText}}
+function renderFallbacks(){document.querySelectorAll('.match').forEach(card=>{const name=cardName(card);if(name&&!card.querySelector('.personalizedMajorDescription'))renderCard(card,tailored[normalized(name)]||describe(name,[]))})}
 
 export default function MajorDescriptions(){
  useEffect(()=>{
