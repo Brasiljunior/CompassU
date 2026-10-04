@@ -7,6 +7,30 @@ const url=process.env.NEXT_PUBLIC_SUPABASE_URL||'https://xvvgalifibyqwebasalx.su
 const key=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY||'sb_publishable_lWtjaYYRk4hd1Bb-yKG3eA_CxF4CW9-';
 const readStored=()=>{try{return JSON.parse(localStorage.getItem('compassu_session')||'null')}catch{return null}};
 
+const factorSetupRequests = new Map();
+async function prepareAdministratorFactor(client, userId) {
+  if (factorSetupRequests.has(userId)) return factorSetupRequests.get(userId);
+  const request = (async () => {
+    const {data:factors,error:fErr} = await client.auth.mfa.listFactors();
+    if (fErr) throw fErr;
+    const all = factors?.all || [...(factors?.totp || []), ...(factors?.phone || [])];
+    const verified = all.find((factor) => factor.status === 'verified' && ['totp','phone'].includes(factor.factor_type));
+    if (verified) return {status:'challenge',factor:verified};
+    for (const factor of all) {
+      if (factor.status !== 'unverified' || factor.factor_type !== 'totp' ||
+          factor.friendly_name !== 'CompassU Administrator') continue;
+      const {error} = await client.auth.mfa.unenroll({factorId:factor.id});
+      if (error) throw error;
+    }
+    const {data:enrolled,error} = await client.auth.mfa.enroll({factorType:'totp',friendlyName:'CompassU Administrator'});
+    if (error) throw error;
+    return {status:'enroll',factor:enrolled};
+  })();
+  factorSetupRequests.set(userId, request);
+  try { return await request; }
+  finally { if (factorSetupRequests.get(userId) === request) factorSetupRequests.delete(userId); }
+}
+
 export default function AdminMfaGate({children}){
   const clientRef=useRef(null);
   const [session,setSession]=useState(null);
@@ -22,16 +46,18 @@ export default function AdminMfaGate({children}){
   useEffect(()=>{
     clientRef.current=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
     let last=null;
+    let syncing=false,stopped=false,setup=null;
     const sync=async()=>{
+      if (syncing || stopped) return;
       const stored=readStored();
       if(!stored?.access_token||!stored?.refresh_token){
-        last='';
+        last='';setup=null;
         setSession(null);setStatus('signed_out');setFactor(null);setChallengeId('');setQr('');setSecret('');
         return;
       }
       const token=stored.access_token;
       if(token===last)return;
-      last=token;
+      last=token;syncing=true;
       setStatus('checking');setError('');setSession(stored);
       try{
         const {error:setErr}=await clientRef.current.auth.setSession({access_token:stored.access_token,refresh_token:stored.refresh_token});
@@ -39,17 +65,15 @@ export default function AdminMfaGate({children}){
         const {data:aal,error:aalErr}=await clientRef.current.auth.mfa.getAuthenticatorAssuranceLevel();
         if(aalErr)throw aalErr;
         if(aal?.currentLevel==='aal2'){setStatus('verified');return}
-        const {data:factors,error:fErr}=await clientRef.current.auth.mfa.listFactors();
-        if(fErr)throw fErr;
-        const verified=[...(factors?.totp||[]),...(factors?.phone||[])].find(f=>f.status==='verified');
-        if(verified){setFactor(verified);setStatus('challenge');return}
-        const {data:enrolled,error:eErr}=await clientRef.current.auth.mfa.enroll({factorType:'totp',friendlyName:'CompassU Administrator'});
-        if(eErr)throw eErr;
-        setFactor(enrolled);
-        setQr(enrolled?.totp?.qr_code||'');
-        setSecret(enrolled?.totp?.secret||'');
-        setStatus('enroll');
-      }catch(e){setStatus('error');setError(e?.message||'Unable to initialize administrator MFA.')}
+        const userId=stored.user?.id;
+        if(!userId)throw new Error('Please sign in again to complete administrator security.');
+        if(!setup || setup.userId!==userId)setup={userId,...await prepareAdministratorFactor(clientRef.current,userId)};
+        if(stopped || readStored()?.user?.id!==userId)return;
+        setFactor(setup.factor);
+        setQr(setup.factor?.totp?.qr_code||'');
+        setSecret(setup.factor?.totp?.secret||'');
+        setStatus(setup.status);
+      }catch(e){if(!stopped){setStatus('error');setError(e?.message||'Unable to initialize administrator MFA.')}}finally{syncing=false;}
     };
     sync();
     const timer=setInterval(sync,400);
@@ -62,7 +86,7 @@ export default function AdminMfaGate({children}){
       setSession(null);setStatus('signed_out');
     };
     document.addEventListener('click',onAdminLogout,true);
-    return()=>{clearInterval(timer);document.removeEventListener('click',onAdminLogout,true)};
+    return()=>{stopped=true;clearInterval(timer);document.removeEventListener('click',onAdminLogout,true)};
   },[]);
 
   const signOut=async()=>{
