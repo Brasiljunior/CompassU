@@ -8,7 +8,8 @@ create table if not exists public.invitation_reminders (
   last_sent_at timestamptz
 );
 alter table public.invitation_reminders enable row level security;
-revoke all on public.invitation_reminders from anon, authenticated;
+revoke all on public.invitation_reminders from public, anon, authenticated;
+grant select, insert, update, delete on public.invitation_reminders to service_role;
 create index if not exists invitation_reminders_due_idx on public.invitation_reminders (invited_at) where reminders_sent < 2;
 
 create or replace function public.claim_invitation_reminders(p_limit integer default 100)

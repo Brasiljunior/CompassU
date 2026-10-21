@@ -180,3 +180,6 @@ comment on table public.institution_reporting_profiles is
 
 comment on table public.institution_report_delivery_log is
   'Stage 2E audit log for automated monthly institutional report generation and email delivery.';
+
+-- Scheduled server access must survive secure-by-default table creation.
+grant select, insert, update, delete on public.institution_reporting_profiles,public.institution_report_delivery_log to service_role;
