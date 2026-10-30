@@ -25,6 +25,10 @@ export default function InviteOnlyAccessGuard() {
       const buttons = [...document.querySelectorAll("button")];
       for (const button of buttons) {
         const text = button.textContent?.trim();
+        if (button.closest("nav") && (text === "Log In to CompassU" || text === "Start My Journey" || text === "Find My Direction")) {
+          button.style.display = "none";
+          continue;
+        }
         if (text === "Create account") {
           button.style.display = "none";
         }
