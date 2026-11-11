@@ -30,3 +30,13 @@ test('wrong institution and unverified recipients are rejected', () => {
 test('duplicate recipients are not planned twice', () => {
   assert.equal(planInstitutionalDelivery({ ...args, recipients: [recipient, { ...recipient, id: 'recipient-2', email: ' STAFF@example.edu ' }] }).length, 2);
 });
+
+test('a completed attempt from a different institution cannot be queued', () => {
+  assert.deepEqual(planInstitutionalDelivery({ ...args, studentTenantId: 'institution-B' }), []);
+});
+test('invalid recipient email is rejected', () => {
+  assert.deepEqual(planInstitutionalDelivery({ ...args, recipients: [{ ...recipient, email: 'not-an-email' }] }), []);
+});
+test('inactive recipient is rejected', () => {
+  assert.deepEqual(planInstitutionalDelivery({ ...args, recipients: [{ ...recipient, active: false }] }), []);
+});
