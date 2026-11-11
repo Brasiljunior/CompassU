@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test:pilot": "node --test tests/pilot-critical-regressions.test.mjs"
+    "test:pilot": "node --test tests/pilot-critical-regressions.test.mjs",
+    "test:institutional-delivery": "node --test tests/institutional-assessment-delivery.test.mjs"
   },
   "dependencies": {
     "jspdf": "4.2.1",
