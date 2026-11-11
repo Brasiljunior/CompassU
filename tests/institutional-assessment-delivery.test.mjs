@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { planInstitutionalDelivery, reportTypesForMode } from '../lib/institutionalAssessmentDelivery.mjs';
+import { institutionalReportNotification } from '../lib/institutionalReportNotification.mjs';
 
 const tenant = 'institution-A';
 const settings = { enabled: true, tenant_institution_id: tenant, report_mode: 'both', authorization_reference: 'approved-contract' };
@@ -39,4 +40,20 @@ test('invalid recipient email is rejected', () => {
 });
 test('inactive recipient is rejected', () => {
   assert.deepEqual(planInstitutionalDelivery({ ...args, recipients: [{ ...recipient, active: false }] }), []);
+});
+
+test('notification contains no student identifiers or assessment results', () => {
+  const notice = institutionalReportNotification({
+    institutionName: 'Example College',
+    reportType: 'summary',
+    portalUrl: 'https://portal.example.edu/institutional-reports',
+  });
+  assert.match(notice.text, /executive summary/);
+  assert.match(notice.text, /https:\/\/portal.example.edu/);
+  assert.doesNotMatch(notice.text, /attempt-1|recipient-1|staff@example.edu/);
+});
+test('notification rejects insecure portal links', () => {
+  assert.throws(() => institutionalReportNotification({
+    institutionName: 'Example College', reportType: 'full', portalUrl: 'http://example.edu/report',
+  }));
 });
