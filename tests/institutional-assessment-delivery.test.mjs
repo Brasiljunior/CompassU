@@ -47,6 +47,7 @@ test('notification contains no student identifiers or assessment results', () =>
     institutionName: 'Example College',
     reportType: 'summary',
     portalUrl: 'https://portal.example.edu/institutional-reports',
+    allowedPortalOrigins: ['https://portal.example.edu'],
   });
   assert.match(notice.text, /executive summary/);
   assert.match(notice.text, /https:\/\/portal.example.edu/);
@@ -55,5 +56,18 @@ test('notification contains no student identifiers or assessment results', () =>
 test('notification rejects insecure portal links', () => {
   assert.throws(() => institutionalReportNotification({
     institutionName: 'Example College', reportType: 'full', portalUrl: 'http://example.edu/report',
+  }));
+});
+
+test('notification rejects unapproved origins and query tokens', () => {
+  const input = {
+    institutionName: 'Example College', reportType: 'summary',
+    allowedPortalOrigins: ['https://portal.example.edu'],
+  };
+  assert.throws(() => institutionalReportNotification({
+    ...input, portalUrl: 'https://attacker.example/institutional-reports',
+  }));
+  assert.throws(() => institutionalReportNotification({
+    ...input, portalUrl: 'https://portal.example.edu/institutional-reports?token=secret',
   }));
 });
