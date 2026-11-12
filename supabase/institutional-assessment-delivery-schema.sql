@@ -31,6 +31,21 @@ create table if not exists public.institution_assessment_recipients (
 create unique index if not exists institution_assessment_recipients_unique_email
   on public.institution_assessment_recipients (tenant_institution_id, lower(email));
 
+-- Individual assessment authorization, independent of institution-wide settings.
+create table if not exists public.institution_assessment_authorizations (
+  attempt_id uuid primary key references public.assessment_attempts(id) on delete cascade,
+  tenant_institution_id uuid not null references public.tenant_institutions(id) on delete cascade,
+  approved boolean not null default false,
+  authorization_reference text,
+  approved_at timestamptz,
+  revoked_at timestamptz,
+  constraint assessment_authorization_requires_evidence
+    check (not approved or (
+      nullif(btrim(authorization_reference),'') is not null
+      and approved_at is not null and revoked_at is null
+    ))
+);
+
 create table if not exists public.institution_assessment_delivery_jobs (
   id uuid primary key default gen_random_uuid(),
   attempt_id uuid not null references public.assessment_attempts(id) on delete cascade,
