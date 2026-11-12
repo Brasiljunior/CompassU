@@ -170,3 +170,15 @@ test('notification sender refuses missing provider confirmation', async () => {
     sendEmail: async () => ({}),
   }), /did not confirm/);
 });
+
+test('notification sender refuses invalid recipient addresses before provider call', async () => {
+  let called = false;
+  const result = await sendInstitutionalNotification({
+    ...dispatch,
+    recipient: { ...dispatch.recipient, email: 'invalid-address' },
+    fromAddress: 'results@example.edu',
+    sendEmail: async () => { called = true; return { id: 'unexpected' }; },
+  });
+  assert.deepEqual(result, { status: 'skipped', reason: 'invalid_recipient_email' });
+  assert.equal(called, false);
+});
