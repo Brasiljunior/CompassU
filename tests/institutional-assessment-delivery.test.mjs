@@ -330,3 +330,33 @@ test('report lookup denies non-designated viewer before reading authorization', 
   assert.deepEqual(result, { allowed: false, reason: 'access_denied' });
   assert.deepEqual(tables, ['institution_assessment_delivery_jobs', 'institution_assessment_recipients']);
 });
+
+test('worker records a retry when assessment database reads fail', async () => {
+  const { processClaimedInstitutionalJob } = await import('../lib/institutionalDeliveryWorker.mjs');
+  let recorded = null;
+  const db = { from(table) {
+    if (table === 'institution_assessment_delivery_jobs') {
+      return {
+        update(value) { recorded = value; return this; },
+        eq() { return this; },
+        select() { return this; },
+        async maybeSingle() { return { data: { id: 'job-1' }, error: null }; },
+      };
+    }
+    return {
+      select() { return this; },
+      eq() { return this; },
+      async maybeSingle() { return { data: null, error: new Error('database unavailable') }; },
+    };
+  } };
+  const result = await processClaimedInstitutionalJob({
+    db, job: { id: 'job-1', status: 'processing', claimed_at: '2026-11-12T00:00:00Z',
+      retry_count: 0, attempt_id: 'attempt-1', recipient_id: 'recipient-1', tenant_institution_id: 'institution-A' },
+    now: new Date('2026-11-12T01:00:00Z'),
+  });
+  assert.equal(result.status, 'failed');
+  assert.equal(recorded.retry_count, 1);
+  assert.equal(recorded.last_error_code, 'transient_delivery_failure');
+  assert.equal(recorded.claimed_at, null);
+  assert.ok(recorded.next_attempt_at);
+});
