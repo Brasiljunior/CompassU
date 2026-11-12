@@ -296,3 +296,17 @@ test('retry policy stops after the fifth delivery failure', () => {
   });
   assert.deepEqual(statuses, ['failed', 'failed', 'failed', 'failed', 'skipped']);
 });
+
+test('server report lookup denies unsent jobs without querying report data', async () => {
+  const { authorizeInstitutionalReportView } = await import('../lib/institutionalReportLookup.mjs');
+  const queries = [];
+  const db = { from(table) {
+    queries.push(table);
+    return { select() { return this; }, eq() { return this; },
+      async maybeSingle() { return { data: { id: 'job-1', status: 'queued' }, error: null }; } };
+  } };
+  assert.deepEqual(await authorizeInstitutionalReportView({
+    db, authenticatedUserId: 'viewer', jobId: 'job-1',
+  }), { allowed: false, reason: 'report_unavailable' });
+  assert.deepEqual(queries, ['institution_assessment_delivery_jobs']);
+});
