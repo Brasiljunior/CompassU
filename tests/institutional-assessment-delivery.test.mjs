@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { planInstitutionalDelivery, reportTypesForMode } from '../lib/institutionalAssessmentDelivery.mjs';
 import { institutionalReportNotification } from '../lib/institutionalReportNotification.mjs';
+import { canViewInstitutionalAssessmentReport } from '../lib/institutionalReportAccess.mjs';
 
 const tenant = 'institution-A';
 const settings = { enabled: true, tenant_institution_id: tenant, report_mode: 'both', authorization_reference: 'approved-contract' };
@@ -70,4 +71,24 @@ test('notification rejects unapproved origins and query tokens', () => {
   assert.throws(() => institutionalReportNotification({
     ...input, portalUrl: 'https://portal.example.edu/institutional-reports?token=secret',
   }));
+});
+
+const access = {
+  authenticatedUserId: 'staff-user',
+  viewerMembership: { user_id: 'staff-user', tenant_institution_id: tenant, active: true },
+  designatedRecipient: { id: 'recipient-1', user_id: 'staff-user', tenant_institution_id: tenant, active: true, verified_at: '2026-11-11' },
+  deliverySettings: settings,
+  report: { tenant_institution_id: tenant, recipient_id: 'recipient-1', report_type: 'full', status: 'sent' },
+};
+test('verified designated recipient can access own institution report', () => {
+  assert.equal(canViewInstitutionalAssessmentReport(access), true);
+});
+test('cross-institution and undesignated viewers are denied', () => {
+  assert.equal(canViewInstitutionalAssessmentReport({ ...access, viewerMembership: { ...access.viewerMembership, tenant_institution_id: 'institution-B' } }), false);
+  assert.equal(canViewInstitutionalAssessmentReport({ ...access, designatedRecipient: { ...access.designatedRecipient, user_id: 'another-user' } }), false);
+});
+test('revoked, unverified and unsent report access is denied', () => {
+  assert.equal(canViewInstitutionalAssessmentReport({ ...access, deliverySettings: { ...settings, enabled: false } }), false);
+  assert.equal(canViewInstitutionalAssessmentReport({ ...access, designatedRecipient: { ...access.designatedRecipient, verified_at: null } }), false);
+  assert.equal(canViewInstitutionalAssessmentReport({ ...access, report: { ...access.report, status: 'queued' } }), false);
 });
