@@ -374,12 +374,13 @@ test('worker quarantines uncertain provider confirmation without retrying', asyn
     institution_assessment_authorizations: { attempt_id: 'attempt-1', tenant_institution_id: 'institution-A', approved: true, approved_at: '2026-11-11', authorization_reference: 'consent', revoked_at: null },
   };
   const db = { from(table) {
+    let queriedUserId = null;
     const q = {
-      select() { return this; }, eq() { return this; }, limit() { return this; },
+      select() { return this; }, eq(column, value) { if (column === 'user_id') queriedUserId = value; return this; }, limit() { return this; },
       update(value) { updated = value; return this; },
       async maybeSingle() {
         if (table === 'institution_assessment_delivery_jobs') return { data: { id: job.id }, error: null };
-        if (table === 'institution_memberships') return { data: { user_id: 'staff', tenant_institution_id: 'institution-A', active: true }, error: null };
+        if (table === 'institution_memberships') return { data: { user_id: queriedUserId, tenant_institution_id: 'institution-A', active: true }, error: null };
         return { data: rows[table], error: null };
       },
     };
