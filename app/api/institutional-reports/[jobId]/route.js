@@ -27,7 +27,7 @@ export async function GET(request, { params }) {
       db, authenticatedUserId: user.id, jobId,
     });
     if (!result.allowed) return Response.json({ error: 'Not found' }, { status: 404 });
-    return Response.json({ report: { id: result.jobId, type: result.reportType, available: true } }, {
+    return Response.json({ report: { id: result.jobId, type: result.reportType, available: false, accessVerified: true } }, {
       headers: { 'Cache-Control': 'no-store, private' },
     });
   } catch {
