@@ -215,3 +215,10 @@ test('Resend transport rejects provider failures and missing confirmation', asyn
     apiKey: 'test-key', fetchImpl: async () => ({ ok: true, json: async () => ({}) }),
   })(message), /lacked a message identifier/);
 });
+
+test('delivery worker refuses jobs without a claim lease', async () => {
+  const { processClaimedInstitutionalJob } = await import('../lib/institutionalDeliveryWorker.mjs');
+  await assert.rejects(processClaimedInstitutionalJob({
+    db: {}, job: { id: 'job-1', status: 'processing' },
+  }), /lease timestamp/);
+});
