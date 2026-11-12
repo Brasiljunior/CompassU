@@ -276,3 +276,11 @@ test('institutional report viewer rejects revoked or wrong-assessment authorizat
   }), false);
   assert.equal(canViewInstitutionalAssessmentReport({ ...access, authorization: null }), false);
 });
+
+test('notification rejects lookalike portal path prefixes', () => {
+  assert.throws(() => institutionalReportNotification({
+    institutionName: 'Example College', reportType: 'summary',
+    portalUrl: 'https://portal.example.edu/institutional-reports-malicious',
+    allowedPortalOrigins: ['https://portal.example.edu'],
+  }), /Portal URL/);
+});
