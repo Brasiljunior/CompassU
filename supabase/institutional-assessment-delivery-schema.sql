@@ -21,6 +21,7 @@ create table if not exists public.institution_assessment_recipients (
   verified_at timestamptz,
   created_at timestamptz not null default now(),
   unique (id, tenant_institution_id),
+  unique (tenant_institution_id, user_id),
   constraint recipient_valid_email
     check (email ~* '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$'),
   constraint recipient_active_requires_verification
@@ -43,13 +44,17 @@ create table if not exists public.institution_assessment_delivery_jobs (
   last_error_code text,
   created_at timestamptz not null default now(),
   sent_at timestamptz,
+  claimed_at timestamptz,
+  next_attempt_at timestamptz not null default now(),
+  constraint delivery_sent_requires_provider_id
+    check (status <> 'sent' or (provider_message_id is not null and sent_at is not null)),
   unique (attempt_id,tenant_institution_id,recipient_id,report_type),
   foreign key (recipient_id,tenant_institution_id)
     references public.institution_assessment_recipients(id,tenant_institution_id)
 );
 
 create index if not exists institution_assessment_jobs_status_idx
-  on public.institution_assessment_delivery_jobs(status,created_at);
+  on public.institution_assessment_delivery_jobs(status,next_attempt_at,created_at);
 
 alter table public.institution_assessment_delivery_settings enable row level security;
 alter table public.institution_assessment_recipients enable row level security;
