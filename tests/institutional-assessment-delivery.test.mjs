@@ -7,6 +7,7 @@ import { canDispatchInstitutionalNotification } from '../lib/institutionalDispat
 import { nextInstitutionalDeliveryRetry } from '../lib/institutionalDeliveryRetry.mjs';
 import { sendInstitutionalNotification } from '../lib/institutionalNotificationSender.mjs';
 import { createInstitutionalResendTransport } from '../lib/institutionalResendTransport.mjs';
+import { validateInstitutionalDeliveryConfiguration, validateInstitutionalRecipientConfiguration } from '../lib/institutionalDeliveryAdminValidation.mjs';
 
 const tenant = 'institution-A';
 const settings = { enabled: true, tenant_institution_id: tenant, report_mode: 'both', authorization_reference: 'approved-contract' };
@@ -245,4 +246,22 @@ test('dispatch refuses absent or revoked assessment-specific authorization', () 
   assert.equal(canDispatchInstitutionalNotification({
     ...dispatch, authorization: { ...dispatch.authorization, attempt_id: 'another-attempt' },
   }), false);
+});
+
+test('admin configuration requires evidence before enabling delivery', () => {
+  assert.throws(() => validateInstitutionalDeliveryConfiguration({
+    enabled: true, report_mode: 'both', authorization_reference: ' ',
+  }), /Authorization evidence/);
+  assert.deepEqual(validateInstitutionalDeliveryConfiguration({
+    enabled: false, report_mode: 'summary', authorization_reference: '',
+  }), { enabled: false, report_mode: 'summary', authorization_reference: null });
+});
+test('admin recipient activation requires verified authenticated identity', () => {
+  const user_id = '123e4567-e89b-42d3-a456-426614174000';
+  assert.throws(() => validateInstitutionalRecipientConfiguration({
+    user_id, email: 'staff@example.edu', active: true, verified_at: null,
+  }), /verified/);
+  assert.deepEqual(validateInstitutionalRecipientConfiguration({
+    user_id, email: ' STAFF@EXAMPLE.EDU ', active: true, verified_at: '2026-11-11',
+  }), { user_id, email: 'staff@example.edu', active: true });
 });
