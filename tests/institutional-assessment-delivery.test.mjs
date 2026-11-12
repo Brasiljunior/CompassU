@@ -6,6 +6,7 @@ import { canViewInstitutionalAssessmentReport } from '../lib/institutionalReport
 import { canDispatchInstitutionalNotification } from '../lib/institutionalDispatchPolicy.mjs';
 import { nextInstitutionalDeliveryRetry } from '../lib/institutionalDeliveryRetry.mjs';
 import { sendInstitutionalNotification } from '../lib/institutionalNotificationSender.mjs';
+import { createInstitutionalResendTransport } from '../lib/institutionalResendTransport.mjs';
 
 const tenant = 'institution-A';
 const settings = { enabled: true, tenant_institution_id: tenant, report_mode: 'both', authorization_reference: 'approved-contract' };
@@ -181,4 +182,36 @@ test('notification sender refuses invalid recipient addresses before provider ca
   });
   assert.deepEqual(result, { status: 'skipped', reason: 'invalid_recipient_email' });
   assert.equal(called, false);
+});
+
+test('Resend transport forwards idempotency header without report data', async () => {
+  let request;
+  const sendEmail = createInstitutionalResendTransport({
+    apiKey: 'test-key',
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return { ok: true, json: async () => ({ id: 'resend-123' }) };
+    },
+  });
+  const result = await sendEmail({
+    from: 'results@example.edu', to: ['staff@example.edu'],
+    subject: 'Report available', text: 'Sign in to view your report',
+    idempotencyKey: 'institutional-delivery/job-1',
+  });
+  assert.deepEqual(result, { id: 'resend-123' });
+  assert.equal(request.options.headers['Idempotency-Key'], 'institutional-delivery/job-1');
+  assert.deepEqual(JSON.parse(request.options.body).to, ['staff@example.edu']);
+  assert.doesNotMatch(request.options.body, /attempt-1/);
+});
+test('Resend transport rejects provider failures and missing confirmation', async () => {
+  const message = {
+    from: 'results@example.edu', to: ['staff@example.edu'],
+    subject: 'Report available', text: 'Sign in', idempotencyKey: 'job-1',
+  };
+  await assert.rejects(createInstitutionalResendTransport({
+    apiKey: 'test-key', fetchImpl: async () => ({ ok: false }),
+  })(message), /did not accept/);
+  await assert.rejects(createInstitutionalResendTransport({
+    apiKey: 'test-key', fetchImpl: async () => ({ ok: true, json: async () => ({}) }),
+  })(message), /lacked a message identifier/);
 });
