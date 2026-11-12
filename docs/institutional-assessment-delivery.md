@@ -44,3 +44,7 @@ Status: development branch; **not enabled in production**.
 - Disabled/missing consent settings send nothing.
 - Retries, logs, and manual resend work without duplicate exposure.
 - Existing student results/email remain functional.
+
+## Authorization source of truth
+
+The server-side outbox now reads `institution_assessment_authorizations` for the completed attempt and checks matching tenant, approved status, evidence, approval timestamp, and absence of revocation. It does not accept a caller-provided consent flag. The assessment-completion integration must create this record through a separately authorized, audited workflow; no UI or client can self-approve authorization. This feature remains disabled until the lawful authorization mechanism and report viewer are verified in staging.
