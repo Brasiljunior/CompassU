@@ -56,11 +56,13 @@ create table if not exists public.institution_assessment_delivery_jobs (
 create index if not exists institution_assessment_jobs_status_idx
   on public.institution_assessment_delivery_jobs(status,next_attempt_at,created_at);
 
+alter table public.institution_assessment_authorizations enable row level security;
 alter table public.institution_assessment_delivery_settings enable row level security;
 alter table public.institution_assessment_recipients enable row level security;
 alter table public.institution_assessment_delivery_jobs enable row level security;
 
 -- No public client access; privileged server operations only.
+revoke all on public.institution_assessment_authorizations from anon,authenticated;
 revoke all on public.institution_assessment_delivery_settings from anon,authenticated;
 revoke all on public.institution_assessment_recipients from anon,authenticated;
 revoke all on public.institution_assessment_delivery_jobs from anon,authenticated;
