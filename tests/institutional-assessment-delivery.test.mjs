@@ -5,6 +5,7 @@ import { institutionalReportNotification } from '../lib/institutionalReportNotif
 import { canViewInstitutionalAssessmentReport } from '../lib/institutionalReportAccess.mjs';
 import { canDispatchInstitutionalNotification } from '../lib/institutionalDispatchPolicy.mjs';
 import { nextInstitutionalDeliveryRetry } from '../lib/institutionalDeliveryRetry.mjs';
+import { sendInstitutionalNotification } from '../lib/institutionalNotificationSender.mjs';
 
 const tenant = 'institution-A';
 const settings = { enabled: true, tenant_institution_id: tenant, report_mode: 'both', authorization_reference: 'approved-contract' };
@@ -132,4 +133,40 @@ test('transient delivery errors use bounded retry delays', () => {
 });
 test('permanent authorization failures never retry', () => {
   assert.equal(nextInstitutionalDeliveryRetry({ retryCount: 0, errorKind: 'authorization' }), null);
+});
+
+test('notification sender confirms accepted provider message', async () => {
+  const calls = [];
+  const result = await sendInstitutionalNotification({
+    ...dispatch,
+    institutionName: 'Example College',
+    portalUrl: 'https://portal.example.edu/institutional-reports',
+    allowedPortalOrigins: ['https://portal.example.edu'],
+    fromAddress: 'results@example.edu',
+    sendEmail: async (message) => { calls.push(message); return { id: 'provider-message-1' }; },
+  });
+  assert.deepEqual(result, { status: 'sent', provider_message_id: 'provider-message-1' });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].idempotencyKey, 'institutional-delivery/job-1');
+  assert.deepEqual(calls[0].to, ['staff@example.edu']);
+});
+test('notification sender never contacts provider after authorization revocation', async () => {
+  let sent = false;
+  const result = await sendInstitutionalNotification({
+    ...dispatch,
+    settings: { ...settings, enabled: false },
+    sendEmail: async () => { sent = true; return { id: 'unexpected' }; },
+  });
+  assert.equal(result.status, 'skipped');
+  assert.equal(sent, false);
+});
+test('notification sender refuses missing provider confirmation', async () => {
+  await assert.rejects(sendInstitutionalNotification({
+    ...dispatch,
+    institutionName: 'Example College',
+    portalUrl: 'https://portal.example.edu/institutional-reports',
+    allowedPortalOrigins: ['https://portal.example.edu'],
+    fromAddress: 'results@example.edu',
+    sendEmail: async () => ({}),
+  }), /did not confirm/);
 });
