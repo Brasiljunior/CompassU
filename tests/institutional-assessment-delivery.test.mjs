@@ -4,6 +4,7 @@ import { planInstitutionalDelivery, reportTypesForMode } from '../lib/institutio
 import { institutionalReportNotification } from '../lib/institutionalReportNotification.mjs';
 import { canViewInstitutionalAssessmentReport } from '../lib/institutionalReportAccess.mjs';
 import { canDispatchInstitutionalNotification } from '../lib/institutionalDispatchPolicy.mjs';
+import { nextInstitutionalDeliveryRetry } from '../lib/institutionalDeliveryRetry.mjs';
 
 const tenant = 'institution-A';
 const settings = { enabled: true, tenant_institution_id: tenant, report_mode: 'both', authorization_reference: 'approved-contract' };
@@ -121,4 +122,14 @@ test('dispatch requires fresh active institutional authorization', () => {
 test('dispatch refuses queued jobs and mismatched assessments', () => {
   assert.equal(canDispatchInstitutionalNotification({ ...dispatch, job: { ...dispatch.job, status: 'queued' } }), false);
   assert.equal(canDispatchInstitutionalNotification({ ...dispatch, attempt: { ...attempt, id: 'different' } }), false);
+});
+
+test('transient delivery errors use bounded retry delays', () => {
+  const now = '2026-11-11T00:00:00.000Z';
+  assert.equal(nextInstitutionalDeliveryRetry({ retryCount: 0, now }), '2026-11-11T00:15:00.000Z');
+  assert.equal(nextInstitutionalDeliveryRetry({ retryCount: 1, now }), '2026-11-11T00:30:00.000Z');
+  assert.equal(nextInstitutionalDeliveryRetry({ retryCount: 5, now }), null);
+});
+test('permanent authorization failures never retry', () => {
+  assert.equal(nextInstitutionalDeliveryRetry({ retryCount: 0, errorKind: 'authorization' }), null);
 });
