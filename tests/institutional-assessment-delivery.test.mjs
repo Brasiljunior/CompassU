@@ -92,3 +92,14 @@ test('revoked, unverified and unsent report access is denied', () => {
   assert.equal(canViewInstitutionalAssessmentReport({ ...access, designatedRecipient: { ...access.designatedRecipient, verified_at: null } }), false);
   assert.equal(canViewInstitutionalAssessmentReport({ ...access, report: { ...access.report, status: 'queued' } }), false);
 });
+
+test('report access fails closed if institutional authorization is withdrawn', () => {
+  assert.equal(canViewInstitutionalAssessmentReport({
+    ...access,
+    deliverySettings: { ...settings, authorization_reference: null },
+  }), false);
+  assert.equal(canViewInstitutionalAssessmentReport({
+    ...access,
+    deliverySettings: { ...settings, authorization_reference: '  ' },
+  }), false);
+});
