@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { planInstitutionalDelivery, reportTypesForMode } from '../lib/institutionalAssessmentDelivery.mjs';
 import { institutionalReportNotification } from '../lib/institutionalReportNotification.mjs';
 import { canViewInstitutionalAssessmentReport } from '../lib/institutionalReportAccess.mjs';
+import { canDispatchInstitutionalNotification } from '../lib/institutionalDispatchPolicy.mjs';
 
 const tenant = 'institution-A';
 const settings = { enabled: true, tenant_institution_id: tenant, report_mode: 'both', authorization_reference: 'approved-contract' };
@@ -102,4 +103,22 @@ test('report access fails closed if institutional authorization is withdrawn', (
     ...access,
     deliverySettings: { ...settings, authorization_reference: '  ' },
   }), false);
+});
+
+const dispatch = {
+  job: { id: 'job-1', attempt_id: attempt.id, tenant_institution_id: tenant, recipient_id: 'recipient-1', report_type: 'summary', status: 'processing' },
+  attempt,
+  recipient: access.designatedRecipient,
+  membership: access.viewerMembership,
+  settings,
+};
+test('dispatch requires fresh active institutional authorization', () => {
+  assert.equal(canDispatchInstitutionalNotification(dispatch), true);
+  assert.equal(canDispatchInstitutionalNotification({ ...dispatch, settings: { ...settings, enabled: false } }), false);
+  assert.equal(canDispatchInstitutionalNotification({ ...dispatch, membership: { ...access.viewerMembership, active: false } }), false);
+  assert.equal(canDispatchInstitutionalNotification({ ...dispatch, recipient: { ...access.designatedRecipient, active: false } }), false);
+});
+test('dispatch refuses queued jobs and mismatched assessments', () => {
+  assert.equal(canDispatchInstitutionalNotification({ ...dispatch, job: { ...dispatch.job, status: 'queued' } }), false);
+  assert.equal(canDispatchInstitutionalNotification({ ...dispatch, attempt: { ...attempt, id: 'different' } }), false);
 });
