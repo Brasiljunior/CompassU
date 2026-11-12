@@ -112,6 +112,7 @@ const dispatch = {
   job: { id: 'job-1', attempt_id: attempt.id, tenant_institution_id: tenant, recipient_id: 'recipient-1', report_type: 'summary', status: 'processing' },
   attempt: { ...attempt, user_id: 'student-user' },
   studentMembership: { user_id: 'student-user', tenant_institution_id: tenant, active: true },
+  authorization: { attempt_id: attempt.id, tenant_institution_id: tenant, approved: true, approved_at: '2026-11-11', revoked_at: null, authorization_reference: 'approved-contract' },
   recipient: access.designatedRecipient,
   membership: access.viewerMembership,
   settings,
@@ -233,5 +234,15 @@ test('dispatch refuses assessment owners without active matching institution mem
   }), false);
   assert.equal(canDispatchInstitutionalNotification({
     ...dispatch, studentMembership: { ...dispatch.studentMembership, active: false },
+  }), false);
+});
+
+test('dispatch refuses absent or revoked assessment-specific authorization', () => {
+  assert.equal(canDispatchInstitutionalNotification({ ...dispatch, authorization: null }), false);
+  assert.equal(canDispatchInstitutionalNotification({
+    ...dispatch, authorization: { ...dispatch.authorization, revoked_at: '2026-11-12' },
+  }), false);
+  assert.equal(canDispatchInstitutionalNotification({
+    ...dispatch, authorization: { ...dispatch.authorization, attempt_id: 'another-attempt' },
   }), false);
 });
