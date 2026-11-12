@@ -79,7 +79,7 @@ test('notification rejects unapproved origins and query tokens', () => {
 const access = {
   authenticatedUserId: 'staff-user',
   viewerMembership: { user_id: 'staff-user', tenant_institution_id: tenant, active: true },
-  designatedRecipient: { id: 'recipient-1', user_id: 'staff-user', tenant_institution_id: tenant, active: true, verified_at: '2026-11-11' },
+  designatedRecipient: { id: 'recipient-1', user_id: 'staff-user', email: 'staff@example.edu', tenant_institution_id: tenant, active: true, verified_at: '2026-11-11' },
   deliverySettings: settings,
   report: { tenant_institution_id: tenant, recipient_id: 'recipient-1', report_type: 'full', status: 'sent' },
 };
