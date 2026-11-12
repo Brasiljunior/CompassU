@@ -360,3 +360,39 @@ test('worker records a retry when assessment database reads fail', async () => {
   assert.equal(recorded.claimed_at, null);
   assert.ok(recorded.next_attempt_at);
 });
+
+test('worker quarantines uncertain provider confirmation without retrying', async () => {
+  const { processClaimedInstitutionalJob } = await import('../lib/institutionalDeliveryWorker.mjs');
+  const job = { id: 'job-1', status: 'processing', claimed_at: '2026-11-12T00:00:00Z',
+    retry_count: 0, attempt_id: 'attempt-1', recipient_id: 'recipient-1', tenant_institution_id: 'institution-A' };
+  let updated;
+  const rows = {
+    assessment_attempts: { id: 'attempt-1', user_id: 'student', status: 'completed', completed_at: '2026-11-12' },
+    institution_assessment_recipients: { id: 'recipient-1', user_id: 'staff', tenant_institution_id: 'institution-A', email: 'staff@example.edu', active: true, verified_at: '2026-11-11' },
+    institution_assessment_delivery_settings: { tenant_institution_id: 'institution-A', enabled: true, report_mode: 'summary', authorization_reference: 'agreement' },
+    tenant_institutions: { id: 'institution-A', name: 'Example College' },
+    institution_assessment_authorizations: { attempt_id: 'attempt-1', tenant_institution_id: 'institution-A', approved: true, approved_at: '2026-11-11', authorization_reference: 'consent', revoked_at: null },
+  };
+  const db = { from(table) {
+    const q = {
+      select() { return this; }, eq() { return this; }, limit() { return this; },
+      update(value) { updated = value; return this; },
+      async maybeSingle() {
+        if (table === 'institution_assessment_delivery_jobs') return { data: { id: job.id }, error: null };
+        if (table === 'institution_memberships') return { data: { user_id: 'staff', tenant_institution_id: 'institution-A', active: true }, error: null };
+        return { data: rows[table], error: null };
+      },
+    };
+    return q;
+  } };
+  const result = await processClaimedInstitutionalJob({
+    db, job, fromAddress: 'results@example.edu',
+    portalUrl: 'https://portal.example.edu/institutional-reports',
+    allowedPortalOrigins: ['https://portal.example.edu'],
+    sendEmail: async () => ({}),
+    now: new Date('2026-11-12T01:00:00Z'),
+  });
+  assert.equal(result.status, 'skipped');
+  assert.equal(updated.last_error_code, 'provider_confirmation_uncertain');
+  assert.equal(updated.next_attempt_at, undefined);
+});
