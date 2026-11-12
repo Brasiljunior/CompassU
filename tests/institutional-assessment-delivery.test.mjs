@@ -110,7 +110,8 @@ test('report access fails closed if institutional authorization is withdrawn', (
 
 const dispatch = {
   job: { id: 'job-1', attempt_id: attempt.id, tenant_institution_id: tenant, recipient_id: 'recipient-1', report_type: 'summary', status: 'processing' },
-  attempt,
+  attempt: { ...attempt, user_id: 'student-user' },
+  studentMembership: { user_id: 'student-user', tenant_institution_id: tenant, active: true },
   recipient: access.designatedRecipient,
   membership: access.viewerMembership,
   settings,
@@ -221,4 +222,16 @@ test('delivery worker refuses jobs without a claim lease', async () => {
   await assert.rejects(processClaimedInstitutionalJob({
     db: {}, job: { id: 'job-1', status: 'processing' },
   }), /lease timestamp/);
+});
+
+test('dispatch refuses assessment owners without active matching institution membership', () => {
+  assert.equal(canDispatchInstitutionalNotification({
+    ...dispatch, studentMembership: null,
+  }), false);
+  assert.equal(canDispatchInstitutionalNotification({
+    ...dispatch, studentMembership: { ...dispatch.studentMembership, tenant_institution_id: 'institution-B' },
+  }), false);
+  assert.equal(canDispatchInstitutionalNotification({
+    ...dispatch, studentMembership: { ...dispatch.studentMembership, active: false },
+  }), false);
 });
