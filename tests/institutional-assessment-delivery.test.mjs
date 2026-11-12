@@ -310,3 +310,23 @@ test('server report lookup denies unsent jobs without querying report data', asy
   }), { allowed: false, reason: 'report_unavailable' });
   assert.deepEqual(queries, ['institution_assessment_delivery_jobs']);
 });
+
+test('report lookup denies non-designated viewer before reading authorization', async () => {
+  const { authorizeInstitutionalReportView } = await import('../lib/institutionalReportLookup.mjs');
+  const tables = [];
+  const db = { from(table) {
+    tables.push(table);
+    return { select() { return this; }, eq() { return this; },
+      async maybeSingle() {
+        if (table === 'institution_assessment_delivery_jobs') {
+          return { data: { id: 'job-1', attempt_id: 'attempt-1', tenant_institution_id: 'institution-A', recipient_id: 'recipient-1', status: 'sent' }, error: null };
+        }
+        return { data: { id: 'recipient-1', user_id: 'other-user', active: true, verified_at: '2026-11-11', tenant_institution_id: 'institution-A' }, error: null };
+      } };
+  } };
+  const result = await authorizeInstitutionalReportView({
+    db, authenticatedUserId: 'unauthorized-user', jobId: 'job-1',
+  });
+  assert.deepEqual(result, { allowed: false, reason: 'access_denied' });
+  assert.deepEqual(tables, ['institution_assessment_delivery_jobs', 'institution_assessment_recipients']);
+});
