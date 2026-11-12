@@ -5,15 +5,17 @@ on:
     branches:
       - feature/institutional-assessment-delivery
     paths:
-      - 'lib/institutionalAssessment*.mjs'
-      - 'lib/institutionalReport*.mjs'
+      - 'lib/institutional*.mjs'
+      - 'app/api/institutional-reports/**'
+      - 'supabase/institutional*.sql'
       - 'tests/institutional-assessment-delivery.test.mjs'
       - 'package.json'
       - '.github/workflows/institutional-assessment-delivery-tests.yml'
   pull_request:
     paths:
-      - 'lib/institutionalAssessment*.mjs'
-      - 'lib/institutionalReport*.mjs'
+      - 'lib/institutional*.mjs'
+      - 'app/api/institutional-reports/**'
+      - 'supabase/institutional*.sql'
       - 'tests/institutional-assessment-delivery.test.mjs'
       - 'package.json'
       - '.github/workflows/institutional-assessment-delivery-tests.yml'
@@ -30,6 +32,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
       - name: Run institutional delivery policy tests
         run: npm run test:institutional-delivery
