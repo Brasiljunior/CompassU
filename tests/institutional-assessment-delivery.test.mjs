@@ -83,7 +83,8 @@ const access = {
   viewerMembership: { user_id: 'staff-user', tenant_institution_id: tenant, active: true },
   designatedRecipient: { id: 'recipient-1', user_id: 'staff-user', email: 'staff@example.edu', tenant_institution_id: tenant, active: true, verified_at: '2026-11-11' },
   deliverySettings: settings,
-  report: { tenant_institution_id: tenant, recipient_id: 'recipient-1', report_type: 'full', status: 'sent' },
+  authorization: { attempt_id: attempt.id, tenant_institution_id: tenant, approved: true, approved_at: '2026-11-11', revoked_at: null, authorization_reference: 'approved-contract' },
+  report: { attempt_id: attempt.id, tenant_institution_id: tenant, recipient_id: 'recipient-1', report_type: 'full', status: 'sent' },
 };
 test('verified designated recipient can access own institution report', () => {
   assert.equal(canViewInstitutionalAssessmentReport(access), true);
@@ -264,4 +265,14 @@ test('admin recipient activation requires verified authenticated identity', () =
   assert.deepEqual(validateInstitutionalRecipientConfiguration({
     user_id, email: ' STAFF@EXAMPLE.EDU ', active: true, verified_at: '2026-11-11',
   }), { user_id, email: 'staff@example.edu', active: true });
+});
+
+test('institutional report viewer rejects revoked or wrong-assessment authorization', () => {
+  assert.equal(canViewInstitutionalAssessmentReport({
+    ...access, authorization: { ...access.authorization, revoked_at: '2026-11-12' },
+  }), false);
+  assert.equal(canViewInstitutionalAssessmentReport({
+    ...access, authorization: { ...access.authorization, attempt_id: 'other-attempt' },
+  }), false);
+  assert.equal(canViewInstitutionalAssessmentReport({ ...access, authorization: null }), false);
 });
