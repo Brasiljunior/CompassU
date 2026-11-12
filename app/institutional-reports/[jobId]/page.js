@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
 import { useParams } from 'next/navigation';
 
 export default function InstitutionalReportPage() {
@@ -13,14 +12,26 @@ export default function InstitutionalReportPage() {
     let cancelled = false;
     async function load() {
       try {
-        const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        // CompassU uses its own compassu_session storage, not supabase-js storage.
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://xvvgalifibyqwebasalx.supabase.co';
+        const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
         if (!url || !key) throw new Error('Institutional access is not configured.');
-        const auth = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-        const { data: { session } } = await auth.auth.getSession();
+        let session;
+        try { session = JSON.parse(localStorage.getItem('compassu_session') || 'null'); } catch { session = null; }
         if (!session?.access_token) {
           if (!cancelled) setStatus('Please sign in to CompassU before opening an institutional report.');
           return;
+        }
+        if (session.expires_at && Number(session.expires_at) * 1000 <= Date.now() + 60000) {
+          if (!session.refresh_token) throw new Error('Your CompassU session expired. Please sign in again.');
+          const refreshed = await fetch(url + '/auth/v1/token?grant_type=refresh_token', {
+            method: 'POST', headers: { apikey: key, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh_token: session.refresh_token }),
+          });
+          if (!refreshed.ok) throw new Error('Your CompassU session expired. Please sign in again.');
+          session = await refreshed.json();
+          if (!session?.access_token) throw new Error('Your CompassU session expired. Please sign in again.');
+          localStorage.setItem('compassu_session', JSON.stringify(session));
         }
         const response = await fetch('/api/institutional-reports/' + encodeURIComponent(jobId), {
           headers: { Authorization: 'Bearer ' + session.access_token },
