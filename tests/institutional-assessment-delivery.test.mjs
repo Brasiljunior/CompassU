@@ -364,7 +364,7 @@ test('worker records a retry when assessment database reads fail', async () => {
 test('worker quarantines uncertain provider confirmation without retrying', async () => {
   const { processClaimedInstitutionalJob } = await import('../lib/institutionalDeliveryWorker.mjs');
   const job = { id: 'job-1', status: 'processing', claimed_at: '2026-11-12T00:00:00Z',
-    retry_count: 0, attempt_id: 'attempt-1', recipient_id: 'recipient-1', tenant_institution_id: 'institution-A' };
+    retry_count: 0, attempt_id: 'attempt-1', recipient_id: 'recipient-1', tenant_institution_id: 'institution-A', report_type: 'summary' };
   let updated;
   const rows = {
     assessment_attempts: { id: 'attempt-1', user_id: 'student', status: 'completed', completed_at: '2026-11-12' },
