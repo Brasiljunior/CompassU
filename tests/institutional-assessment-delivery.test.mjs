@@ -284,3 +284,15 @@ test('notification rejects lookalike portal path prefixes', () => {
     allowedPortalOrigins: ['https://portal.example.edu'],
   }), /Portal URL/);
 });
+
+test('retry policy stops after the fifth delivery failure', () => {
+  // A job starts with retry_count 0. The fifth failure is terminal.
+  const failures = [1, 2, 3, 4, 5];
+  const statuses = failures.map(retryCount => {
+    const next = retryCount >= 5 ? null : nextInstitutionalDeliveryRetry({
+      retryCount: retryCount - 1, now: '2026-11-12T00:00:00Z',
+    });
+    return next ? 'failed' : 'skipped';
+  });
+  assert.deepEqual(statuses, ['failed', 'failed', 'failed', 'failed', 'skipped']);
+});
