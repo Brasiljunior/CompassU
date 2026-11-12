@@ -397,3 +397,15 @@ test('worker quarantines uncertain provider confirmation without retrying', asyn
   assert.equal(updated.last_error_code, 'provider_confirmation_uncertain');
   assert.equal(updated.next_attempt_at, undefined);
 });
+
+test('Resend transport marks network disconnect as uncertain delivery', async () => {
+  const sendEmail = createInstitutionalResendTransport({
+    apiKey: 'test-key',
+    fetchImpl: async () => { throw new Error('connection reset'); },
+  });
+  await assert.rejects(sendEmail({
+    from: 'results@example.edu', to: ['staff@example.edu'],
+    subject: 'Report available', text: 'Sign in to view',
+    idempotencyKey: 'institutional-delivery/job-1',
+  }), /confirmation uncertain/);
+});
