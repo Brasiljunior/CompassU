@@ -5,7 +5,11 @@ export const dynamic = 'force-dynamic';
 
 // Metadata-only endpoint. This does not expose student assessment results.
 export async function GET(request, { params }) {
-  // Explicit opt-in; new report endpoints must remain closed until staged authorization review.\n  if (process.env.INSTITUTIONAL_REPORTS_ENABLED !== 'true') {\n    return Response.json({ error: 'Institutional reporting is not enabled' }, { status: 503, headers: { 'Cache-Control': 'no-store' } });\n  }\n  const { jobId } = await params;
+  // Explicit opt-in; new report endpoints must remain closed until staged authorization review.
+  if (process.env.INSTITUTIONAL_REPORTS_ENABLED !== 'true') {
+    return Response.json({ error: 'Institutional reporting is not enabled' }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
+  }
+  const { jobId } = await params;
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(jobId ?? '')) {
     return Response.json({ error: 'Not found' }, { status: 404 });
   }
