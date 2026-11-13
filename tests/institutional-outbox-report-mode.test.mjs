@@ -47,3 +47,30 @@ for (const mode of ['full', 'both']) {
     assert.equal(db.reads.includes('institution_assessment_delivery_jobs'), false);
   });
 }
+
+test('outbox refuses a tenant inconsistent with the assessment affiliation before consent lookup', async () => {
+  const db = fakeDb('summary');
+  const result = await enqueueInstitutionalAssessmentDelivery({
+    db, attemptId: 'attempt-1', studentTenantId: 'different-tenant',
+  });
+  assert.deepEqual(result, { queued: 0, reason: 'institution_mismatch' });
+  assert.deepEqual(db.reads, ['assessment_attempts', 'institution_assessment_affiliations']);
+});
+
+test('outbox rejects incomplete institutional affiliation evidence before consent lookup', async () => {
+  const db = fakeDb('summary');
+  const originalFrom = db.from;
+  db.from = function (table) {
+    if (table === 'institution_assessment_affiliations') {
+      db.reads.push(table);
+      return { select() { return this; }, eq() { return this; },
+        async maybeSingle() { return { data: { attempt_id: 'attempt-1', tenant_institution_id: 'tenant-1', evidence_reference: '' }, error: null }; } };
+    }
+    return originalFrom(table);
+  };
+  const result = await enqueueInstitutionalAssessmentDelivery({
+    db, attemptId: 'attempt-1', studentTenantId: 'tenant-1',
+  });
+  assert.deepEqual(result, { queued: 0, reason: 'student_affiliation_not_verified' });
+  assert.equal(db.reads.includes('institution_assessment_authorizations'), false);
+});
