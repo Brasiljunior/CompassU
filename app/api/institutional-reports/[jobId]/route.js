@@ -46,8 +46,8 @@ export async function GET(request, { params }) {
         headers: { 'Cache-Control': 'no-store, private' },
       });
     }
-    return Response.json({ report: { id: result.jobId, type: result.reportType, available: false, accessVerified: true } }, {
-      headers: { 'Cache-Control': 'no-store, private' },
+    return Response.json({ error: 'Not found' }, {
+      status: 404, headers: { 'Cache-Control': 'no-store' },
     });
   } catch {
     return Response.json({ error: 'Report service unavailable' }, { status: 503 });
