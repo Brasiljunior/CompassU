@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -29,16 +29,19 @@ async function accessToken() {
 export default function InstitutionalReportsHome() {
   const [status, setStatus] = useState('Checking institutional access…');
   const [reports, setReports] = useState([]);
+  const requestSequence = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
+      const requestId = ++requestSequence.current;
+      const isCurrent = () => !cancelled && requestId === requestSequence.current;
       // Never retain a previous account's report metadata during revalidation.
-      if (!cancelled) { setReports([]); setStatus('Checking institutional access…'); }
+      if (isCurrent()) { setReports([]); setStatus('Checking institutional access…'); }
       try {
         const token = await accessToken();
         if (!token) {
-          if (!cancelled) setStatus('Please sign in to CompassU with your authorized institutional account.');
+          if (isCurrent()) setStatus('Please sign in to CompassU with your authorized institutional account.');
           return;
         }
         const response = await fetch('/api/institutional-reports', {
@@ -48,12 +51,12 @@ export default function InstitutionalReportsHome() {
         if (response.status === 401) throw new Error('Your session has expired. Please sign in again.');
         if (!response.ok) throw new Error('Institutional reporting is not yet available. Please try again later.');
         const data = await response.json();
-        if (!cancelled) {
+        if (isCurrent()) {
           setReports(Array.isArray(data.reports) ? data.reports : []);
           setStatus('Report list checked. Access to individual reports is verified separately.');
         }
       } catch (error) {
-        if (!cancelled) {
+        if (isCurrent()) {
           setReports([]);
           setStatus(error.message || 'Unable to load institutional reports.');
         }
@@ -65,7 +68,7 @@ export default function InstitutionalReportsHome() {
       if (event.key === 'compassu_session' || event.key === null) load();
     };
     window.addEventListener('storage', onSessionChange);
-    return () => { cancelled = true; window.removeEventListener('storage', onSessionChange); };
+    return () => { cancelled = true; requestSequence.current++; window.removeEventListener('storage', onSessionChange); };
   }, []);
 
   return <main style={{ maxWidth: 760, margin: '64px auto', padding: 24, fontFamily: 'Arial, sans-serif' }}>
