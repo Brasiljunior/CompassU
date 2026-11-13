@@ -13,8 +13,8 @@ export default function InstitutionalReportPage() {
     async function load() {
       try {
         // CompassU uses its own compassu_session storage, not supabase-js storage.
-        const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://xvvgalifibyqwebasalx.supabase.co';
-        const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         if (!url || !key) throw new Error('Institutional access is not configured.');
         let session;
         try { session = JSON.parse(localStorage.getItem('compassu_session') || 'null'); } catch { session = null; }
