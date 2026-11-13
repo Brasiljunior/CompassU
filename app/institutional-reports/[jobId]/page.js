@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 
 export default function InstitutionalReportPage() {
   const { jobId } = useParams();
   const [status, setStatus] = useState('Checking your institutional access…');
   const [report, setReport] = useState(null);
+  const requestSequence = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -14,6 +15,10 @@ export default function InstitutionalReportPage() {
     setReport(null);
     setStatus('Checking your institutional access…');
     async function load() {
+      const requestId = ++requestSequence.current;
+      setReport(null);
+      setStatus('Checking your institutional access…');
+      const isCurrent = () => !cancelled && requestId === requestSequence.current;
       try {
         // CompassU uses its own compassu_session storage, not supabase-js storage.
         const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -22,7 +27,7 @@ export default function InstitutionalReportPage() {
         let session;
         try { session = JSON.parse(localStorage.getItem('compassu_session') || 'null'); } catch { session = null; }
         if (!session?.access_token) {
-          if (!cancelled) setStatus('Please sign in to CompassU before opening an institutional report.');
+          if (isCurrent()) setStatus('Please sign in to CompassU before opening an institutional report.');
           return;
         }
         if (session.expires_at && Number(session.expires_at) * 1000 <= Date.now() + 60000) {
@@ -43,19 +48,28 @@ export default function InstitutionalReportPage() {
         if (response.status === 404) throw new Error('This report is not available to your account.');
         if (!response.ok) throw new Error('The report service is temporarily unavailable.');
         const data = await response.json();
-        if (!cancelled) {
+        if (isCurrent()) {
           setReport(data.report);
           setStatus('Your institutional access was verified.');
         }
       } catch (error) {
-        if (!cancelled) {
+        if (isCurrent()) {
           setReport(null);
           setStatus(error.message || 'Unable to verify access.');
         }
       }
     }
     if (jobId) load();
-    return () => { cancelled = true; };
+    // Recheck authorization when another tab signs in, signs out, or changes user.
+    const onSessionChange = (event) => {
+      if (event.key === 'compassu_session' || event.key === null) load();
+    };
+    window.addEventListener('storage', onSessionChange);
+    return () => {
+      cancelled = true;
+      requestSequence.current++;
+      window.removeEventListener('storage', onSessionChange);
+    };
   }, [jobId]);
 
   return <main style={{ maxWidth: 720, margin: '64px auto', padding: 24, fontFamily: 'Arial, sans-serif' }}>
