@@ -110,3 +110,23 @@ test('report lookup permits a valid designated recipient with matching affiliati
     db, authenticatedUserId: 'viewer-1', jobId: 'job-1',
   }), { allowed: true, jobId: 'job-1', attemptId: 'attempt-1', reportType: 'summary' });
 });
+
+test('unsupported full-report job is rejected before recipient or consent lookup', async () => {
+  const { authorizeInstitutionalReportView } = await import('../lib/institutionalReportLookup.mjs');
+  const queries = [];
+  const db = { from(table) {
+    queries.push(table);
+    if (table !== 'institution_assessment_delivery_jobs') throw new Error('Unexpected sensitive lookup');
+    return {
+      select() { return this; }, eq() { return this; },
+      async maybeSingle() { return { data: {
+        id: 'job-1', attempt_id: 'attempt-1', tenant_institution_id: 'institution-1',
+        recipient_id: 'recipient-1', report_type: 'full', status: 'sent',
+      }, error: null }; },
+    };
+  } };
+  assert.deepEqual(await authorizeInstitutionalReportView({
+    db, authenticatedUserId: 'viewer-1', jobId: 'job-1',
+  }), { allowed: false, reason: 'report_unavailable' });
+  assert.deepEqual(queries, ['institution_assessment_delivery_jobs']);
+});
