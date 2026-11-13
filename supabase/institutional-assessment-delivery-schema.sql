@@ -34,6 +34,27 @@ create table if not exists public.institution_assessment_recipients (
 create unique index if not exists institution_assessment_recipients_unique_email
   on public.institution_assessment_recipients (tenant_institution_id, lower(email));
 
+-- Recipient verification applies to the exact email address that was verified.
+-- A changed address must be reverified before it can receive any notification.
+create or replace function public.institution_assessment_recipient_email_guard()
+returns trigger
+language plpgsql
+as $
+begin
+  if lower(btrim(new.email)) is distinct from lower(btrim(old.email)) then
+    new.verified_at := null;
+    new.active := false;
+  end if;
+  return new;
+end;
+$;
+
+drop trigger if exists institution_assessment_recipient_email_guard_trigger
+  on public.institution_assessment_recipients;
+create trigger institution_assessment_recipient_email_guard_trigger
+before update of email on public.institution_assessment_recipients
+for each row execute function public.institution_assessment_recipient_email_guard();
+
 -- Individual assessment authorization, independent of institution-wide settings.
 create table if not exists public.institution_assessment_authorizations (
   attempt_id uuid primary key references public.assessment_attempts(id) on delete cascade,
