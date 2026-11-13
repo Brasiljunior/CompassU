@@ -1,9 +1,9 @@
 -- Draft only: apply to isolated test project after review.
--- Delivery and recipients are disabled by default.
+-- Delivery and recipients are disabled by default.\n-- Default to the only implemented secure report format (executive summary).\n-- Full and both modes are reserved for a future tested full-report viewer.
 create table if not exists public.institution_assessment_delivery_settings (
   tenant_institution_id uuid primary key references public.tenant_institutions(id) on delete cascade,
   enabled boolean not null default false,
-  report_mode text not null default 'both' check (report_mode in ('full','summary','both')),
+  report_mode text not null default 'summary' check (report_mode in ('full','summary','both')),
   authorization_reference text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
