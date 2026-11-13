@@ -18,3 +18,7 @@ Read-only inspection of the CompassU staging database on 2026-11-13 found:
 5. Only after these checks, update the completion bridge and its tests and run staging end-to-end tests with synthetic student accounts.
 
 No schema migrations, production changes, or notification dispatch were performed during this inspection.
+
+## Follow-up staging evidence
+
+The existing `account_institutions` table includes `email`, `institution`, and `tenant_institution_id`. A read-only join from completed attempts through the current `auth.users.email` to this table matched **13 completed assessments** to a non-null tenant ID (2026-11-13). This is a coverage observation, **not** proof of consent or an immutable student-institution affiliation: emails and account assignments can change. Do not authorize report delivery from this join alone. The intended design should capture a trusted tenant snapshot at assessment completion and validate an independent per-attempt authorization before queuing delivery.
