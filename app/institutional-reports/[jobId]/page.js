@@ -57,7 +57,7 @@ export default function InstitutionalReportPage() {
     <p role="status">{status}</p>
     {report && <section aria-label="Report status">
       <p>Report type: {report.type === 'summary' ? 'Executive summary' : 'Full report'}</p>
-      <p>The secure assessment report viewer is being prepared. Student results are not yet available on this page.</p>
+      {report.type === 'summary' && report.available && report.content?.topMajors ? <section>\n        <h2>Top recommended majors</h2>\n        <ol>{report.content.topMajors.map((major) => <li key={major.rank + ':' + major.major}>\n          {major.major} — {major.matchScore}% alignment\n        </li>)}</ol>\n        <p>{report.content.methodologyNote}</p>\n      </section> : <p>The secure full-report viewer is being prepared. Report content is not yet available on this page.</p>}
     </section>}
     <p><a href="/">Return to CompassU</a></p>
   </main>;
