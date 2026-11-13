@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { authorizeInstitutionalReportView } from '../../../../lib/institutionalReportLookup.mjs';
-import { buildInstitutionalExecutiveSummary } from '../../../../lib/institutionalExecutiveSummary.mjs';
+import { loadAuthorizedInstitutionalSummary } from '../../../../lib/institutionalSummaryLoader.mjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,31 +32,17 @@ export async function GET(request, { params }) {
       db, authenticatedUserId: user.id, jobId,
     });
     if (!result.allowed) return Response.json({ error: 'Not found' }, { status: 404 });
-    // The executive summary uses persisted, ranked major matches only.
-    // Do not fetch assessment answers or profiles. Full report content remains unavailable.
     if (result.reportType === 'summary') {
-      const { data: matches, error: matchesError } = await db.from('major_matches')
-        .select('major_id,match_score,rank,majors(name)')
-        .eq('attempt_id', result.attemptId)
-        .order('rank', { ascending: true })
-        .limit(10);
-      if (matchesError) throw matchesError;
-      if (!matches?.length) return Response.json({ error: 'Report content unavailable' }, {
-        status: 404, headers: { 'Cache-Control': 'no-store' },
-      });
-      const summary = buildInstitutionalExecutiveSummary({ matches, attemptId: result.attemptId });
-      if (!summary.topMajors.length) return Response.json({ error: 'Report content unavailable' }, {
-        status: 404, headers: { 'Cache-Control': 'no-store' },
-      });
-      // Revalidate permissions after reading scoring rows to narrow the window
-      // in which revoked consent could otherwise permit a report response.
-      const freshAccess = await authorizeInstitutionalReportView({
+      const summary = await loadAuthorizedInstitutionalSummary({
         db, authenticatedUserId: user.id, jobId,
       });
-      if (!freshAccess.allowed || freshAccess.attemptId !== result.attemptId || freshAccess.reportType !== 'summary') {
-        return Response.json({ error: 'Not found' }, { status: 404, headers: { 'Cache-Control': 'no-store' } });
-      }
-      return Response.json({ report: { id: result.jobId, type: 'summary', available: true, content: summary } }, {
+      if (summary.status === 'denied') return Response.json({ error: 'Not found' }, {
+        status: 404, headers: { 'Cache-Control': 'no-store' },
+      });
+      if (summary.status !== 'available') return Response.json({ error: 'Report content unavailable' }, {
+        status: 404, headers: { 'Cache-Control': 'no-store' },
+      });
+      return Response.json({ report: summary.report }, {
         headers: { 'Cache-Control': 'no-store, private' },
       });
     }
