@@ -16,39 +16,11 @@ test('reconciliation rejects invalid IDs before processing any item', async () =
   );
 });
 
-test('reconciliation deduplicates attempts and fails closed without valid assessment records', async () => {
-  let queries = 0;
-  const db = {
-    from(table) {
-      assert.equal(table, 'assessment_attempts');
-      queries++;
-      return {
-        select() { return this; },
-        eq() { return this; },
-        async maybeSingle() { return { data: null, error: null }; },
-      };
-    },
-  };
-  const result = await reconcileInstitutionalCompletions({ db, attemptIds: ['a', 'a', 'b'], dryRun: false });
-  assert.equal(result.processed, 2);
-  assert.equal(result.plannedOrExistingJobs, 0);
-  assert.deepEqual(result.results.map(row => row.reason), ['assessment_not_completed', 'assessment_not_completed']);
-  assert.equal(queries, 2);
-});
-
-test('database failure is isolated and does not expose exception details', async () => {
-  const db = {
-    from() {
-      return {
-        select() { return this; },
-        eq() { return this; },
-        async maybeSingle() { throw new Error('sensitive database detail'); },
-      };
-    },
-  };
-  const result = await reconcileInstitutionalCompletions({ db, attemptIds: ['a', 'b'], dryRun: false });
-  assert.deepEqual(result.results.map(row => row.reason), ['processing_error', 'processing_error']);
-  assert.equal(JSON.stringify(result).includes('sensitive database detail'), false);
+test('direct reconciliation writes are disabled before any database reads', async () => {
+  const db = { from() { throw new Error('unexpected database access'); } };
+  await assert.rejects(reconcileInstitutionalCompletions({
+    db, attemptIds: ['a', 'a', 'b'], dryRun: false,
+  }), /Institutional reconciliation writes are not enabled/);
 });
 
 test('reconciliation requires a bounded positive integer batch limit', async () => {
