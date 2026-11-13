@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { timingSafeEqual } from 'node:crypto';
 import { runInstitutionalCompletionBatch } from '../../../../lib/institutionalCompletionBatch.mjs';
 
 export const dynamic = 'force-dynamic';
@@ -12,7 +13,9 @@ export async function GET(request) {
   }
   const secret = process.env.INSTITUTIONAL_RECONCILIATION_SECRET;
   const authorization = request.headers.get('authorization');
-  if (!secret || secret.length < 32 || authorization !== 'Bearer ' + secret) {
+  const expected = secret && secret.length >= 32 ? Buffer.from('Bearer ' + secret) : null;
+  const actual = typeof authorization === 'string' ? Buffer.from(authorization) : null;
+  if (!expected || !actual || actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
     return Response.json({ error: 'Unauthorized' }, { status: 401, headers });
   }
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
