@@ -40,3 +40,10 @@ test('invalid batch mode fails before database access', async () => {
   await assert.rejects(runInstitutionalCompletionBatch({ db, ...window, dryRun: 'false' }),
     /Invalid institutional batch mode/);
 });
+
+test('write-enabled reconciliation remains blocked before any database access', async () => {
+  const db = { from() { throw new Error('unexpected database access'); } };
+  await assert.rejects(runInstitutionalCompletionBatch({
+    db, ...window, dryRun: false,
+  }), /Institutional reconciliation writes are not enabled/);
+});
