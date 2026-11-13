@@ -53,3 +53,39 @@ test('student with multiple institutions is not assigned a guessed recipient ins
 test('missing trusted completion context is rejected', async () => {
   await assert.rejects(enqueueCompletedInstitutionalAssessment({ attemptId: 'attempt-1' }), /Missing trusted/);
 });
+
+test('single verified institution delegates to fail-closed delivery settings', async () => {
+  const reads = [];
+  const db = {
+    from(table) {
+      reads.push(table);
+      const rows = {
+        assessment_attempts: { id: 'attempt-1', user_id: 'student-1', status: 'completed', completed_at: '2026-11-12T12:00:00Z' },
+        institution_assessment_authorizations: null,
+      };
+      if (table === 'institution_memberships') {
+        return {
+          select() { return this; },
+          eq() { return this; },
+          limit() {
+            // Both bridge and outbox must independently validate the membership.
+            return {
+              then(resolve) { return Promise.resolve({ data: [{ tenant_institution_id: 'tenant-1' }], error: null }).then(resolve); },
+              async maybeSingle() { return { data: { tenant_institution_id: 'tenant-1', active: true }, error: null }; },
+            };
+          },
+        };
+      }
+      if (!(table in rows)) throw new Error('Unexpected table: ' + table);
+      return {
+        select() { return this; },
+        eq() { return this; },
+        async maybeSingle() { return { data: rows[table], error: null }; },
+      };
+    },
+  };
+  const result = await enqueueCompletedInstitutionalAssessment({ db, attemptId: 'attempt-1' });
+  assert.deepEqual(result, { queued: 0, reason: 'authorization_not_confirmed' });
+  assert.equal(reads.includes('institution_assessment_delivery_jobs'), false);
+  assert.equal(reads.includes('institution_assessment_recipients'), false);
+});
