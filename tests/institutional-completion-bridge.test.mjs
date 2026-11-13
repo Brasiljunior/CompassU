@@ -48,3 +48,23 @@ test('verified affiliation still requires independent per-attempt consent', asyn
   assert.equal(db.reads.includes('institution_memberships'), false);
   assert.equal(db.reads.includes('institution_assessment_delivery_jobs'), false);
 });
+
+test('direct outbox call rejects completed assessment without a persisted owner', async () => {
+  const { enqueueInstitutionalAssessmentDelivery } = await import('../lib/institutionalAssessmentOutbox.mjs');
+  const reads = [];
+  const db = { from(table) {
+    reads.push(table);
+    if (table !== 'assessment_attempts') throw new Error('Unexpected institutional lookup');
+    return {
+      select() { return this; }, eq() { return this; },
+      async maybeSingle() { return { data: {
+        id: 'attempt-1', user_id: null, status: 'completed',
+        completed_at: '2026-11-12T12:00:00Z',
+      }, error: null }; },
+    };
+  } };
+  assert.deepEqual(await enqueueInstitutionalAssessmentDelivery({
+    db, attemptId: 'attempt-1', studentTenantId: 'tenant-1',
+  }), { queued: 0, reason: 'assessment_not_completed' });
+  assert.deepEqual(reads, ['assessment_attempts']);
+});
