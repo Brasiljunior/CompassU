@@ -114,3 +114,22 @@ test('scoring database errors fail closed instead of returning a partial summary
     /database unavailable/,
   );
 });
+
+test('changing the authorized job between checks denies the executive summary', async () => {
+  let checks = 0;
+  const result = await loadAuthorizedInstitutionalSummary({
+    ...args(scoringDb()),
+    authorize: async () => ++checks === 1 ? approved : { ...approved, jobId: 'different-job' },
+  });
+  assert.equal(result.status, 'denied');
+  assert.equal(checks, 2);
+});
+
+test('initial authorization for a full report never reads summary scoring rows', async () => {
+  const db = scoringDb();
+  const result = await loadAuthorizedInstitutionalSummary({
+    ...args(db), authorize: async () => ({ ...approved, reportType: 'full' }),
+  });
+  assert.equal(result.status, 'denied');
+  assert.equal(db.reads, 0);
+});
