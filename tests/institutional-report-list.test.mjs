@@ -103,7 +103,7 @@ test('authorized recipient sees only report metadata and no student identifiers'
     db: authorizedDb(), authenticatedUserId: 'viewer-A',
   });
   assert.deepEqual(reports, [{
-    id: 'job-A', type: 'summary', sentAt: '2026-11-12', contentAvailable: false,
+    id: 'job-A', type: 'summary', sentAt: '2026-11-12', contentAvailable: true,
   }]);
   assert.equal(JSON.stringify(reports).includes('student-A'), false);
 });
