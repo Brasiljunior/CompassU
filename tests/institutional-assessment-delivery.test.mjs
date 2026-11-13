@@ -357,7 +357,7 @@ test('worker records a retry when assessment database reads fail', async () => {
   } };
   const result = await processClaimedInstitutionalJob({
     db, job: { id: 'job-1', status: 'processing', claimed_at: '2026-11-12T00:00:00Z',
-      retry_count: 0, attempt_id: 'attempt-1', recipient_id: 'recipient-1', tenant_institution_id: 'institution-A' },
+      retry_count: 0, attempt_id: 'attempt-1', recipient_id: 'recipient-1', tenant_institution_id: 'institution-A', report_type: 'summary' },
     now: new Date('2026-11-12T01:00:00Z'),
   });
   assert.equal(result.status, 'failed');
@@ -470,5 +470,23 @@ test('admin configuration refuses unimplemented full and mixed report modes', ()
     assert.throws(() => validateInstitutionalDeliveryConfiguration({
       enabled: false, report_mode, authorization_reference: '',
     }), /Invalid report mode/);
+  }
+});
+
+test('delivery worker rejects unsupported or incomplete claimed jobs before any database access', async () => {
+  const { processClaimedInstitutionalJob } = await import('../lib/institutionalDeliveryWorker.mjs');
+  const valid = {
+    id: 'job-1', status: 'processing', claimed_at: '2026-11-12T00:00:00Z',
+    attempt_id: 'attempt-1', tenant_institution_id: 'institution-A',
+    recipient_id: 'recipient-1', report_type: 'summary',
+  };
+  const db = { from() { throw new Error('Unexpected database read'); } };
+  for (const job of [
+    { ...valid, report_type: 'full' },
+    { ...valid, attempt_id: null },
+    { ...valid, recipient_id: null },
+    { ...valid, tenant_institution_id: null },
+  ]) {
+    await assert.rejects(processClaimedInstitutionalJob({ db, job }), /valid claimed summary job/);
   }
 });
