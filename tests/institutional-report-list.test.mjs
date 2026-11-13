@@ -62,7 +62,7 @@ test('report list fails on recipient lookup errors instead of claiming no record
 });
 
 
-function authorizedDb({ revoked = false, recipientActive = true } = {}) {
+function authorizedDb({ revoked = false, recipientActive = true, affiliationTenant = 'tenant-A' } = {}) {
   const tenant = 'tenant-A', viewer = 'viewer-A', jobId = 'job-A', attemptId = 'attempt-A';
   const rows = {
     institution_assessment_recipients: [{ id: 'recipient-A', user_id: viewer, tenant_institution_id: tenant, active: recipientActive, verified_at: '2026-11-11' }],
@@ -73,7 +73,7 @@ function authorizedDb({ revoked = false, recipientActive = true } = {}) {
     ],
     institution_assessment_delivery_settings: [{ tenant_institution_id: tenant, enabled: true, report_mode: 'summary', authorization_reference: 'institution-agreement' }],
     institution_assessment_authorizations: [{ attempt_id: attemptId, tenant_institution_id: tenant, approved: !revoked, approved_at: '2026-11-11', authorization_reference: 'student-consent', revoked_at: revoked ? '2026-11-12' : null }],
-    institution_assessment_affiliations: [{ attempt_id: attemptId, tenant_institution_id: tenant, evidence_reference: 'trusted-invitation' }],
+    institution_assessment_affiliations: [{ attempt_id: attemptId, tenant_institution_id: affiliationTenant, evidence_reference: 'trusted-invitation' }],
   };
   return {
     from(table) {
@@ -118,6 +118,14 @@ test('revoking individual assessment authorization immediately removes report li
 test('deactivating a designated recipient removes their report listing', async () => {
   const reports = await listAuthorizedInstitutionalReports({
     db: authorizedDb({ recipientActive: false }), authenticatedUserId: 'viewer-A',
+  });
+  assert.deepEqual(reports, []);
+});
+
+test('report list hides previously sent reports when assessment affiliation no longer matches', async () => {
+  const reports = await listAuthorizedInstitutionalReports({
+    db: authorizedDb({ affiliationTenant: 'tenant-B' }),
+    authenticatedUserId: 'viewer-A',
   });
   assert.deepEqual(reports, []);
 });
