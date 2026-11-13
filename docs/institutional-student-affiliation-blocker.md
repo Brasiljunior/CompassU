@@ -22,3 +22,19 @@ No schema migrations, production changes, or notification dispatch were performe
 ## Follow-up staging evidence
 
 The existing `account_institutions` table includes `email`, `institution`, and `tenant_institution_id`. A read-only join from completed attempts through the current `auth.users.email` to this table matched **13 completed assessments** to a non-null tenant ID (2026-11-13). This is a coverage observation, **not** proof of consent or an immutable student-institution affiliation: emails and account assignments can change. Do not authorize report delivery from this join alone. The intended design should capture a trusted tenant snapshot at assessment completion and validate an independent per-attempt authorization before queuing delivery.
+
+## Additional invitation-schema inspection (2026-11-13)
+
+Read-only staging schema inspection found `admin_role_invitations` with
+`tenant_institution_id`, `accepted_by`, and `accepted_at`, but those
+invitations concern administrator roles and cannot prove student affiliation.
+`batch_invitation_report_items` stores email and delivery status, but does not
+contain a tenant institution ID or a verified assessment-attempt ID.
+`account_institutions` contains a tenant ID but remains email-keyed and mutable.
+
+**Implementation requirement:** establish a server-controlled, authenticated
+student-to-tenant assignment with a documented provenance record, then
+atomically snapshot that assignment against the specific assessment attempt.
+Do not backfill historical attempts from current account email, batch email
+delivery logs, or administrator invitations. Independently capture and verify
+per-attempt authorization; no notification should be queued without both.
