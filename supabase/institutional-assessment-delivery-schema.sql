@@ -1,4 +1,5 @@
 -- Draft only: apply to isolated test project after review.
+-- Prerequisite: institutional-assessment-affiliation-draft.sql must be applied first.
 -- Delivery and recipients are disabled by default.
 -- Default to the only implemented secure report format (executive summary).
 -- Full and both modes are reserved for a future tested full-report viewer.
@@ -41,6 +42,9 @@ create table if not exists public.institution_assessment_authorizations (
   authorization_reference text,
   approved_at timestamptz,
   revoked_at timestamptz,
+  constraint assessment_authorization_affiliation_match
+    foreign key (attempt_id,tenant_institution_id)
+    references public.institution_assessment_affiliations(attempt_id,tenant_institution_id),
   constraint assessment_authorization_requires_evidence
     check (not approved or (
       nullif(btrim(authorization_reference),'') is not null
@@ -63,6 +67,9 @@ create table if not exists public.institution_assessment_delivery_jobs (
   sent_at timestamptz,
   claimed_at timestamptz,
   next_attempt_at timestamptz not null default now(),
+  constraint delivery_job_affiliation_match
+    foreign key (attempt_id,tenant_institution_id)
+    references public.institution_assessment_affiliations(attempt_id,tenant_institution_id),
   constraint delivery_sent_requires_provider_id
     check (status <> 'sent' or (provider_message_id is not null and sent_at is not null)),
   unique (attempt_id,tenant_institution_id,recipient_id,report_type),
