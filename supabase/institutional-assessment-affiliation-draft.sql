@@ -13,6 +13,10 @@ create table if not exists public.institution_assessment_affiliations (
   recorded_by uuid references auth.users(id)
 );
 
+-- Composite key allows downstream records to reference the same tenant as the attempt.
+create unique index if not exists institution_assessment_affiliations_attempt_tenant_key
+  on public.institution_assessment_affiliations(attempt_id,tenant_institution_id);
+
 create index if not exists institution_assessment_affiliations_tenant_idx
   on public.institution_assessment_affiliations(tenant_institution_id);
 
