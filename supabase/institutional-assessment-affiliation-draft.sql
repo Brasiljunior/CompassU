@@ -19,6 +19,28 @@ create index if not exists institution_assessment_affiliations_tenant_idx
 alter table public.institution_assessment_affiliations enable row level security;
 revoke all on public.institution_assessment_affiliations from anon, authenticated;
 
--- The primary key ensures one tenant per attempt. The application must
--- prohibit reassignment after capture and verify institutional authorization
--- independently; this schema does not establish consent or grant report access.
+-- A primary key alone does not prevent UPDATE reassignment.
+create or replace function public.prevent_institution_assessment_affiliation_reassignment()
+returns trigger language plpgsql security invoker set search_path = ''
+as $
+begin
+  if new.attempt_id is distinct from old.attempt_id
+    or new.tenant_institution_id is distinct from old.tenant_institution_id
+    or new.evidence_reference is distinct from old.evidence_reference
+    or new.recorded_at is distinct from old.recorded_at
+    or new.recorded_by is distinct from old.recorded_by then
+    raise exception 'Assessment institutional affiliation cannot be reassigned';
+  end if;
+  return new;
+end;
+$;
+revoke all on function public.prevent_institution_assessment_affiliation_reassignment()
+  from public, anon, authenticated;
+drop trigger if exists prevent_institution_assessment_affiliation_reassignment
+  on public.institution_assessment_affiliations;
+create trigger prevent_institution_assessment_affiliation_reassignment
+before update on public.institution_assessment_affiliations
+for each row execute function public.prevent_institution_assessment_affiliation_reassignment();
+
+-- Privileged deletion remains possible for retention and privacy workflows.
+-- This schema does not establish consent or grant report access.
