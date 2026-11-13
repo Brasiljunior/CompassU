@@ -62,11 +62,14 @@ test('report list fails on recipient lookup errors instead of claiming no record
 });
 
 
-function authorizedDb({ revoked = false, recipientActive = true, affiliationTenant = 'tenant-A' } = {}) {
+function authorizedDb({ revoked = false, recipientActive = true, affiliationTenant = 'tenant-A', includeLegacyFull = false } = {}) {
   const tenant = 'tenant-A', viewer = 'viewer-A', jobId = 'job-A', attemptId = 'attempt-A';
   const rows = {
     institution_assessment_recipients: [{ id: 'recipient-A', user_id: viewer, tenant_institution_id: tenant, active: recipientActive, verified_at: '2026-11-11' }],
-    institution_assessment_delivery_jobs: [{ id: jobId, attempt_id: attemptId, tenant_institution_id: tenant, recipient_id: 'recipient-A', report_type: 'summary', status: 'sent', sent_at: '2026-11-12' }],
+    institution_assessment_delivery_jobs: [
+      ...(includeLegacyFull ? [{ id: 'legacy-full', attempt_id: attemptId, tenant_institution_id: tenant, recipient_id: 'recipient-A', report_type: 'full', status: 'sent', sent_at: '2026-11-13' }] : []),
+      { id: jobId, attempt_id: attemptId, tenant_institution_id: tenant, recipient_id: 'recipient-A', report_type: 'summary', status: 'sent', sent_at: '2026-11-12' },
+    ],
     institution_memberships: [
       { user_id: viewer, tenant_institution_id: tenant, active: true },
       { user_id: 'student-A', tenant_institution_id: tenant, active: true },
@@ -128,4 +131,11 @@ test('report list hides previously sent reports when assessment affiliation no l
     authenticatedUserId: 'viewer-A',
   });
   assert.deepEqual(reports, []);
+});
+
+test('legacy full-report jobs never appear in summary-only report listings', async () => {
+  const reports = await listAuthorizedInstitutionalReports({
+    db: authorizedDb({ includeLegacyFull: true }), authenticatedUserId: 'viewer-A',
+  });
+  assert.deepEqual(reports.map(report => report.id), ['job-A']);
 });
