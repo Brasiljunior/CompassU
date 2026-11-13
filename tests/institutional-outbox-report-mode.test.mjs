@@ -6,7 +6,7 @@ function fakeDb(mode) {
   const reads = [];
   const rows = {
     assessment_attempts: { id: 'attempt-1', user_id: 'student-1', status: 'completed', completed_at: '2026-11-12T00:00:00Z' },
-    institution_memberships: { id: 'membership-1', active: true, tenant_institution_id: 'tenant-1' },
+    institution_assessment_affiliations: { attempt_id: 'attempt-1', tenant_institution_id: 'tenant-1', evidence_reference: 'invitation-1' },
     institution_assessment_authorizations: {
       attempt_id: 'attempt-1', tenant_institution_id: 'tenant-1',
       approved: true, approved_at: '2026-11-12T00:00:00Z',
