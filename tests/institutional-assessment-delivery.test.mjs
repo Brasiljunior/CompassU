@@ -254,7 +254,7 @@ test('dispatch refuses absent or revoked assessment-specific authorization', () 
 
 test('admin configuration requires evidence before enabling delivery', () => {
   assert.throws(() => validateInstitutionalDeliveryConfiguration({
-    enabled: true, report_mode: 'both', authorization_reference: ' ',
+    enabled: true, report_mode: 'summary', authorization_reference: ' ',
   }), /Authorization evidence/);
   assert.deepEqual(validateInstitutionalDeliveryConfiguration({
     enabled: false, report_mode: 'summary', authorization_reference: '',
