@@ -34,7 +34,7 @@ begin
     update public.institution_assessment_delivery_jobs j
     set status = 'skipped',
         last_error_code = 'provider_confirmation_unknown',
-        next_attempt_at = null
+        next_attempt_at = 'infinity'::timestamptz
     from stale s
     where j.id = s.id and j.status = 'processing'
     returning j.id
