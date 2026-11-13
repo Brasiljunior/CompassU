@@ -461,3 +461,11 @@ test('unsupported full and mixed modes cannot authorize institutional report acc
     allowedPortalOrigins: ['https://portal.example.edu'],
   }), /Unsupported report type/);
 });
+
+test('admin configuration refuses unimplemented full and mixed report modes', () => {
+  for (const report_mode of ['full', 'both']) {
+    assert.throws(() => validateInstitutionalDeliveryConfiguration({
+      enabled: false, report_mode, authorization_reference: '',
+    }), /Invalid report mode/);
+  }
+});
