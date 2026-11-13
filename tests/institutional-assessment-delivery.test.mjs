@@ -10,13 +10,16 @@ import { createInstitutionalResendTransport } from '../lib/institutionalResendTr
 import { validateInstitutionalDeliveryConfiguration, validateInstitutionalRecipientConfiguration } from '../lib/institutionalDeliveryAdminValidation.mjs';
 
 const tenant = 'institution-A';
-const settings = { enabled: true, tenant_institution_id: tenant, report_mode: 'both', authorization_reference: 'approved-contract' };
+const settings = { enabled: true, tenant_institution_id: tenant, report_mode: 'summary', authorization_reference: 'approved-contract' };
 const attempt = { id: 'attempt-1', status: 'completed', completed_at: '2026-11-11T00:00:00Z' };
 const recipient = { id: 'recipient-1', tenant_institution_id: tenant, email: 'staff@example.edu', active: true, verified_at: '2026-11-11T00:00:00Z' };
 const args = { settings, attempt, studentTenantId: tenant, consentApproved: true, recipients: [recipient] };
 
-test('both mode plans full and summary', () => {
-  assert.deepEqual(planInstitutionalDelivery(args).map(x => x.report_type), ['full', 'summary']);
+test('unsupported full and mixed modes cannot plan delivery', () => {
+  assert.deepEqual(reportTypesForMode('full'), []);
+  assert.deepEqual(reportTypesForMode('both'), []);
+  assert.deepEqual(planInstitutionalDelivery({ ...args, settings: { ...settings, report_mode: 'full' } }), []);
+  assert.deepEqual(planInstitutionalDelivery({ ...args, settings: { ...settings, report_mode: 'both' } }), []);
 });
 test('one report type can be configured', () => {
   assert.deepEqual(reportTypesForMode('summary'), ['summary']);
@@ -35,7 +38,7 @@ test('wrong institution and unverified recipients are rejected', () => {
   assert.deepEqual(planInstitutionalDelivery({ ...args, recipients: [{ ...recipient, verified_at: null }] }), []);
 });
 test('duplicate recipients are not planned twice', () => {
-  assert.equal(planInstitutionalDelivery({ ...args, recipients: [recipient, { ...recipient, id: 'recipient-2', email: ' STAFF@example.edu ' }] }).length, 2);
+  assert.equal(planInstitutionalDelivery({ ...args, recipients: [recipient, { ...recipient, id: 'recipient-2', email: ' STAFF@example.edu ' }] }).length, 1);
 });
 
 test('a completed attempt from a different institution cannot be queued', () => {
