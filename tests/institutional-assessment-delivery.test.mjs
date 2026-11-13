@@ -372,6 +372,7 @@ test('worker quarantines uncertain provider confirmation without retrying', asyn
     institution_assessment_delivery_settings: { tenant_institution_id: 'institution-A', enabled: true, report_mode: 'summary', authorization_reference: 'agreement' },
     tenant_institutions: { id: 'institution-A', name: 'Example College' },
     institution_assessment_authorizations: { attempt_id: 'attempt-1', tenant_institution_id: 'institution-A', approved: true, approved_at: '2026-11-11', authorization_reference: 'consent', revoked_at: null },
+    institution_assessment_affiliations: { attempt_id: 'attempt-1', tenant_institution_id: 'institution-A', evidence_reference: 'trusted-invitation' },
   };
   const db = { from(table) {
     let queriedUserId = null;
