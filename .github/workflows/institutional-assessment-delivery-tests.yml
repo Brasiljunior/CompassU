@@ -7,6 +7,7 @@ on:
     paths:
       - 'lib/institutional*.mjs'
       - 'app/api/institutional-reports/**'
+      - 'app/api/institutional-reconciliation/**'
       - 'app/institutional-reports/**'
       - 'supabase/institutional*.sql'
       - 'tests/institutional*.test.mjs'
@@ -16,6 +17,7 @@ on:
     paths:
       - 'lib/institutional*.mjs'
       - 'app/api/institutional-reports/**'
+      - 'app/api/institutional-reconciliation/**'
       - 'app/institutional-reports/**'
       - 'supabase/institutional*.sql'
       - 'tests/institutional*.test.mjs'
