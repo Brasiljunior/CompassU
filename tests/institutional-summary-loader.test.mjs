@@ -60,3 +60,22 @@ test('switching authorized assessment between checks denies report', async () =>
   });
   assert.equal(result.status, 'denied');
 });
+
+test('initial authorization for a different job cannot trigger scoring retrieval', async () => {
+  const db = scoringDb();
+  const result = await loadAuthorizedInstitutionalSummary({
+    ...args(db), authorize: async () => ({ ...approved, jobId: 'another-job' }),
+  });
+  assert.equal(result.status, 'denied');
+  assert.equal(db.reads, 0);
+});
+
+test('report-type change during retrieval denies the executive summary', async () => {
+  let checks = 0;
+  const result = await loadAuthorizedInstitutionalSummary({
+    ...args(scoringDb()),
+    authorize: async () => ++checks === 1 ? approved : { ...approved, reportType: 'full' },
+  });
+  assert.equal(result.status, 'denied');
+  assert.equal(checks, 2);
+});
