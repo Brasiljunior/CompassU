@@ -29,11 +29,15 @@ permissions:
 jobs:
   policy-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
       - name: Run institutional delivery policy tests
         run: npm run test:institutional-delivery
+      - name: Validate Next.js production build
+        run: npm run build
