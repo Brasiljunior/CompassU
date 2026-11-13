@@ -32,3 +32,9 @@ test('institutional delivery schema starts disabled and requires attempt-level a
     assert.ok(schema.includes('revoke all on public.' + table + ' from anon,authenticated;'));
   }
 });
+
+test('database rejects unsupported full-report delivery jobs', () => {
+  const schema = sql('institutional-assessment-delivery-schema.sql');
+  assert.match(schema, /report_type text not null check \(report_type = 'summary'\)/i);
+  assert.doesNotMatch(schema, /report_type text not null check \(report_type in \('full','summary'\)\)/i);
+});
