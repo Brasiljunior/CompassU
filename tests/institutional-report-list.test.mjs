@@ -73,7 +73,7 @@ function authorizedDb({ revoked = false, recipientActive = true } = {}) {
     ],
     institution_assessment_delivery_settings: [{ tenant_institution_id: tenant, enabled: true, report_mode: 'summary', authorization_reference: 'institution-agreement' }],
     institution_assessment_authorizations: [{ attempt_id: attemptId, tenant_institution_id: tenant, approved: !revoked, approved_at: '2026-11-11', authorization_reference: 'student-consent', revoked_at: revoked ? '2026-11-12' : null }],
-    assessment_attempts: [{ id: attemptId, user_id: 'student-A', status: 'completed', completed_at: '2026-11-11' }],
+    institution_assessment_affiliations: [{ attempt_id: attemptId, tenant_institution_id: tenant, evidence_reference: 'trusted-invitation' }],
   };
   return {
     from(table) {
