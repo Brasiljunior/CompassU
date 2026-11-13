@@ -4,7 +4,7 @@ import { buildInstitutionalExecutiveSummary } from '../../../../lib/institutiona
 
 export const dynamic = 'force-dynamic';
 
-// Metadata-only endpoint. This does not expose student assessment results.
+// Authorized executive-summary endpoint. Never exposes raw assessment responses.
 export async function GET(request, { params }) {
   // Explicit opt-in; new report endpoints must remain closed until staged authorization review.
   if (process.env.INSTITUTIONAL_REPORTS_ENABLED !== 'true') {
@@ -48,6 +48,14 @@ export async function GET(request, { params }) {
       if (!summary.topMajors.length) return Response.json({ error: 'Report content unavailable' }, {
         status: 404, headers: { 'Cache-Control': 'no-store' },
       });
+      // Revalidate permissions after reading scoring rows to narrow the window
+      // in which revoked consent could otherwise permit a report response.
+      const freshAccess = await authorizeInstitutionalReportView({
+        db, authenticatedUserId: user.id, jobId,
+      });
+      if (!freshAccess.allowed || freshAccess.attemptId !== result.attemptId || freshAccess.reportType !== 'summary') {
+        return Response.json({ error: 'Not found' }, { status: 404, headers: { 'Cache-Control': 'no-store' } });
+      }
       return Response.json({ report: { id: result.jobId, type: 'summary', available: true, content: summary } }, {
         headers: { 'Cache-Control': 'no-store, private' },
       });
