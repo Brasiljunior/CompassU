@@ -61,7 +61,7 @@ export default function InstitutionalReportsHome() {
   return <main style={{ maxWidth: 760, margin: '64px auto', padding: 24, fontFamily: 'Arial, sans-serif' }}>
     <h1>CompassU Institutional Reports</h1>
     <p role="status">{status}</p>
-    <p>Secure report viewing is under development. No student assessment responses are displayed here.</p>
+    <p>Authorized executive summaries can display ranked major recommendations. Full reports remain under development; raw assessment responses are not displayed here.</p>
     {reports.length > 0 && <section aria-label="Authorized institutional report records">
       <h2>Authorized report records</h2>
       <ul>{reports.map(report => <li key={report.id}>
@@ -69,7 +69,7 @@ export default function InstitutionalReportsHome() {
           {report.type === 'summary' ? 'Executive summary' : 'Full report'}
           {report.sentAt ? ' — notification sent ' + new Date(report.sentAt).toLocaleDateString() : ''}
         </a>
-        {' — content not yet available'}
+        {report.contentAvailable ? ' — summary viewer available' : ' — content not yet available'}
       </li>)}</ul>
     </section>}
     {status === 'Report list checked. Access to individual reports is verified separately.' && reports.length === 0 &&
