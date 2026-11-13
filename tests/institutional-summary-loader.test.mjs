@@ -79,3 +79,38 @@ test('report-type change during retrieval denies the executive summary', async (
   assert.equal(result.status, 'denied');
   assert.equal(checks, 2);
 });
+
+test('missing persisted scoring rows never produces an empty available report', async () => {
+  const db = {
+    from(table) {
+      assert.equal(table, 'major_matches');
+      return {
+        select() { return this; },
+        eq() { return this; },
+        order() { return this; },
+        async limit() { return { data: [], error: null }; },
+      };
+    },
+  };
+  const result = await loadAuthorizedInstitutionalSummary({
+    ...args(db), authorize: async () => approved,
+  });
+  assert.equal(result.status, 'unavailable');
+});
+
+test('scoring database errors fail closed instead of returning a partial summary', async () => {
+  const db = {
+    from() {
+      return {
+        select() { return this; },
+        eq() { return this; },
+        order() { return this; },
+        async limit() { return { data: null, error: new Error('database unavailable') }; },
+      };
+    },
+  };
+  await assert.rejects(
+    loadAuthorizedInstitutionalSummary({ ...args(db), authorize: async () => approved }),
+    /database unavailable/,
+  );
+});
