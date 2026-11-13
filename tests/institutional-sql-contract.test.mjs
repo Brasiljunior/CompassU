@@ -38,3 +38,10 @@ test('database rejects unsupported full-report delivery jobs', () => {
   assert.match(schema, /report_type text not null check \(report_type = 'summary'\)/i);
   assert.doesNotMatch(schema, /report_type text not null check \(report_type in \('full','summary'\)\)/i);
 });
+
+test('institutional report API never exposes unsupported report metadata', () => {
+  const route = readFileSync(new URL('../app/api/institutional-reports/[jobId]/route.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(route, /accessVerified:\s*true/);
+  assert.match(route, /result\.reportType === 'summary'/);
+  assert.match(route, /status: 404, headers: \{ 'Cache-Control': 'no-store' \}/);
+});
