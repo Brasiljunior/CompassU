@@ -87,7 +87,7 @@ const access = {
   designatedRecipient: { id: 'recipient-1', user_id: 'staff-user', email: 'staff@example.edu', tenant_institution_id: tenant, active: true, verified_at: '2026-11-11' },
   deliverySettings: settings,
   authorization: { attempt_id: attempt.id, tenant_institution_id: tenant, approved: true, approved_at: '2026-11-11', revoked_at: null, authorization_reference: 'approved-contract' },
-  report: { attempt_id: attempt.id, tenant_institution_id: tenant, recipient_id: 'recipient-1', report_type: 'full', status: 'sent' },
+  report: { attempt_id: attempt.id, tenant_institution_id: tenant, recipient_id: 'recipient-1', report_type: 'summary', status: 'sent' },
 };
 test('verified designated recipient can access own institution report', () => {
   assert.equal(canViewInstitutionalAssessmentReport(access), true);
@@ -450,4 +450,14 @@ test('worker never sends when assessment affiliation differs from job institutio
   assert.deepEqual(result, { jobId: 'job-1', status: 'skipped' });
   assert.equal(update.last_error_code, 'authorization_denied');
   assert.equal(sent, false);
+});
+
+test('unsupported full and mixed modes cannot authorize institutional report access', () => {
+  assert.equal(canViewInstitutionalAssessmentReport({ ...access, report: { ...access.report, report_type: 'full' } }), false);
+  assert.equal(canViewInstitutionalAssessmentReport({ ...access, deliverySettings: { ...settings, report_mode: 'both' } }), false);
+  assert.throws(() => institutionalReportNotification({
+    institutionName: 'Example College', reportType: 'full',
+    portalUrl: 'https://portal.example.edu/institutional-reports',
+    allowedPortalOrigins: ['https://portal.example.edu'],
+  }), /Unsupported report type/);
 });
