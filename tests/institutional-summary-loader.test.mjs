@@ -56,7 +56,7 @@ test('revocation between scoring read and response denies report', async () => {
 test('switching authorized assessment between checks denies report', async () => {
   const result = await loadAuthorizedInstitutionalSummary({
     ...args(scoringDb()),
-    authorize: async (() => { let checks = 0; return () => ++checks === 1 ? approved : { ...approved, attemptId: 'attempt-2' }; })(),
+    authorize: (() => { let checks = 0; return async () => ++checks === 1 ? approved : { ...approved, attemptId: 'attempt-2' }; })(),
   });
   assert.equal(result.status, 'denied');
 });
