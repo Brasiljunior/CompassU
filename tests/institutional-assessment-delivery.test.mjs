@@ -410,3 +410,41 @@ test('Resend transport marks network disconnect as uncertain delivery', async ()
     idempotencyKey: 'institutional-delivery/job-1',
   }), /confirmation uncertain/);
 });
+
+test('worker never sends when assessment affiliation differs from job institution', async () => {
+  const { processClaimedInstitutionalJob } = await import('../lib/institutionalDeliveryWorker.mjs');
+  const job = { id: 'job-1', attempt_id: 'attempt-1', recipient_id: 'recipient-1',
+    tenant_institution_id: 'institution-A', report_type: 'summary',
+    status: 'processing', claimed_at: '2026-11-12T00:00:00Z', retry_count: 0 };
+  const records = {
+    assessment_attempts: { id: 'attempt-1', user_id: 'student-1', status: 'completed', completed_at: '2026-11-12' },
+    institution_assessment_recipients: { id: 'recipient-1', user_id: 'staff-1', tenant_institution_id: 'institution-A',
+      email: 'staff@example.edu', active: true, verified_at: '2026-11-12' },
+    institution_assessment_delivery_settings: { tenant_institution_id: 'institution-A', enabled: true,
+      report_mode: 'summary', authorization_reference: 'agreement' },
+    tenant_institutions: { id: 'institution-A', name: 'Example College' },
+    institution_assessment_affiliations: { attempt_id: 'attempt-1', tenant_institution_id: 'institution-B',
+      evidence_reference: 'verified-invitation' },
+    institution_assessment_authorizations: { attempt_id: 'attempt-1', tenant_institution_id: 'institution-A',
+      approved: true, approved_at: '2026-11-12', revoked_at: null, authorization_reference: 'consent' },
+    institution_memberships: { user_id: 'staff-1', tenant_institution_id: 'institution-A', active: true },
+  };
+  let update;
+  let sent = false;
+  const db = { from(table) {
+    const q = { select() { return this; }, eq() { return this; }, limit() { return this; },
+      update(value) { update = value; return this; },
+      async maybeSingle() { return { data: table === 'institution_assessment_delivery_jobs'
+        ? { id: job.id } : records[table] ?? null, error: null }; } };
+    return q;
+  } };
+  const result = await processClaimedInstitutionalJob({
+    db, job, fromAddress: 'results@example.edu',
+    portalUrl: 'https://portal.example.edu/institutional-reports',
+    allowedPortalOrigins: ['https://portal.example.edu'],
+    sendEmail: async () => { sent = true; return { id: 'should-not-send' }; },
+  });
+  assert.deepEqual(result, { jobId: 'job-1', status: 'skipped' });
+  assert.equal(update.last_error_code, 'authorization_denied');
+  assert.equal(sent, false);
+});
