@@ -29,7 +29,7 @@ test('reconciliation deduplicates attempts and fails closed without valid assess
       };
     },
   };
-  const result = await reconcileInstitutionalCompletions({ db, attemptIds: ['a', 'a', 'b'] });
+  const result = await reconcileInstitutionalCompletions({ db, attemptIds: ['a', 'a', 'b'], dryRun: false });
   assert.equal(result.processed, 2);
   assert.equal(result.plannedOrExistingJobs, 0);
   assert.deepEqual(result.results.map(row => row.reason), ['assessment_not_completed', 'assessment_not_completed']);
@@ -46,7 +46,7 @@ test('database failure is isolated and does not expose exception details', async
       };
     },
   };
-  const result = await reconcileInstitutionalCompletions({ db, attemptIds: ['a', 'b'] });
+  const result = await reconcileInstitutionalCompletions({ db, attemptIds: ['a', 'b'], dryRun: false });
   assert.deepEqual(result.results.map(row => row.reason), ['processing_error', 'processing_error']);
   assert.equal(JSON.stringify(result).includes('sensitive database detail'), false);
 });
@@ -67,6 +67,25 @@ test('reconciliation rejects missing trusted database and non-array input', asyn
   );
   await assert.rejects(
     reconcileInstitutionalCompletions({ db: {}, attemptIds: 'a' }),
+    /Invalid trusted reconciliation context/,
+  );
+});
+
+test('default reconciliation is a no-write preview', async () => {
+  const db = { from() { throw new Error('preview must not query database'); } };
+  const result = await reconcileInstitutionalCompletions({ db, attemptIds: ['a', 'a', 'b'] });
+  assert.deepEqual(result, {
+    processed: 0,
+    plannedOrExistingJobs: 0,
+    dryRun: true,
+    candidateCount: 2,
+    results: [],
+  });
+});
+
+test('reconciliation refuses nonboolean dry-run setting', async () => {
+  await assert.rejects(
+    reconcileInstitutionalCompletions({ db: {}, attemptIds: [], dryRun: 'false' }),
     /Invalid trusted reconciliation context/,
   );
 });
