@@ -7,6 +7,7 @@ on:
     paths:
       - 'lib/institutional*.mjs'
       - 'app/api/institutional-reports/**'
+      - 'app/institutional-reports/**'
       - 'supabase/institutional*.sql'
       - 'tests/institutional-assessment-delivery.test.mjs'
       - 'package.json'
@@ -15,6 +16,7 @@ on:
     paths:
       - 'lib/institutional*.mjs'
       - 'app/api/institutional-reports/**'
+      - 'app/institutional-reports/**'
       - 'supabase/institutional*.sql'
       - 'tests/institutional-assessment-delivery.test.mjs'
       - 'package.json'
