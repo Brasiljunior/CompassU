@@ -84,3 +84,29 @@ test('a report cannot be viewed if its assessment affiliation is missing or chan
     assert.equal(queries.includes('institution_assessment_affiliations'), true);
   }
 });
+
+test('report lookup permits a valid designated recipient with matching affiliation evidence', async () => {
+  const { authorizeInstitutionalReportView } = await import('../lib/institutionalReportLookup.mjs');
+  const context = valid();
+  const records = {
+    institution_assessment_delivery_jobs: { id: 'job-1', ...context.report },
+    institution_assessment_recipients: context.designatedRecipient,
+    institution_memberships: context.viewerMembership,
+    institution_assessment_delivery_settings: context.deliverySettings,
+    institution_assessment_authorizations: context.authorization,
+    institution_assessment_affiliations: {
+      attempt_id: 'attempt-1', tenant_institution_id: 'institution-1',
+      evidence_reference: 'verified-invitation',
+    },
+  };
+  const db = { from(table) {
+    const query = {
+      select() { return this; }, eq() { return this; }, limit() { return this; },
+      async maybeSingle() { return { data: records[table] ?? null, error: null }; },
+    };
+    return query;
+  } };
+  assert.deepEqual(await authorizeInstitutionalReportView({
+    db, authenticatedUserId: 'viewer-1', jobId: 'job-1',
+  }), { allowed: true, jobId: 'job-1', attemptId: 'attempt-1', reportType: 'summary' });
+});
