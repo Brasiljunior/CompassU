@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { authorizeInstitutionalReportView } from '../../../../lib/institutionalReportLookup.mjs';
+import { buildInstitutionalExecutiveSummary } from '../../../../lib/institutionalExecutiveSummary.mjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +32,26 @@ export async function GET(request, { params }) {
       db, authenticatedUserId: user.id, jobId,
     });
     if (!result.allowed) return Response.json({ error: 'Not found' }, { status: 404 });
+    // The executive summary uses persisted, ranked major matches only.
+    // Do not fetch assessment answers or profiles. Full report content remains unavailable.
+    if (result.reportType === 'summary') {
+      const { data: matches, error: matchesError } = await db.from('major_matches')
+        .select('major_id,match_score,rank,majors(name)')
+        .eq('attempt_id', result.attemptId)
+        .order('rank', { ascending: true })
+        .limit(10);
+      if (matchesError) throw matchesError;
+      if (!matches?.length) return Response.json({ error: 'Report content unavailable' }, {
+        status: 404, headers: { 'Cache-Control': 'no-store' },
+      });
+      const summary = buildInstitutionalExecutiveSummary({ matches, attemptId: result.attemptId });
+      if (!summary.topMajors.length) return Response.json({ error: 'Report content unavailable' }, {
+        status: 404, headers: { 'Cache-Control': 'no-store' },
+      });
+      return Response.json({ report: { id: result.jobId, type: 'summary', available: true, content: summary } }, {
+        headers: { 'Cache-Control': 'no-store, private' },
+      });
+    }
     return Response.json({ report: { id: result.jobId, type: result.reportType, available: false, accessVerified: true } }, {
       headers: { 'Cache-Control': 'no-store, private' },
     });
