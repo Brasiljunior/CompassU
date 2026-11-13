@@ -113,7 +113,7 @@ test('report access fails closed if institutional authorization is withdrawn', (
 const dispatch = {
   job: { id: 'job-1', attempt_id: attempt.id, tenant_institution_id: tenant, recipient_id: 'recipient-1', report_type: 'summary', status: 'processing' },
   attempt: { ...attempt, user_id: 'student-user' },
-  studentMembership: { user_id: 'student-user', tenant_institution_id: tenant, active: true },
+  studentAffiliation: { attempt_id: attempt.id, tenant_institution_id: tenant, evidence_reference: 'trusted-invitation' },
   authorization: { attempt_id: attempt.id, tenant_institution_id: tenant, approved: true, approved_at: '2026-11-11', revoked_at: null, authorization_reference: 'approved-contract' },
   recipient: access.designatedRecipient,
   membership: access.viewerMembership,
@@ -227,15 +227,15 @@ test('delivery worker refuses jobs without a claim lease', async () => {
   }), /lease timestamp/);
 });
 
-test('dispatch refuses assessment owners without active matching institution membership', () => {
+test('dispatch refuses missing or mismatched assessment affiliation', () => {
   assert.equal(canDispatchInstitutionalNotification({
-    ...dispatch, studentMembership: null,
+    ...dispatch, studentAffiliation: null,
   }), false);
   assert.equal(canDispatchInstitutionalNotification({
-    ...dispatch, studentMembership: { ...dispatch.studentMembership, tenant_institution_id: 'institution-B' },
+    ...dispatch, studentAffiliation: { ...dispatch.studentAffiliation, tenant_institution_id: 'institution-B' },
   }), false);
   assert.equal(canDispatchInstitutionalNotification({
-    ...dispatch, studentMembership: { ...dispatch.studentMembership, active: false },
+    ...dispatch, studentAffiliation: { ...dispatch.studentAffiliation, evidence_reference: '' },
   }), false);
 });
 
