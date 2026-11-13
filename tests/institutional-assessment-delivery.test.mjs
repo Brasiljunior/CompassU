@@ -11,7 +11,7 @@ import { validateInstitutionalDeliveryConfiguration, validateInstitutionalRecipi
 
 const tenant = 'institution-A';
 const settings = { enabled: true, tenant_institution_id: tenant, report_mode: 'summary', authorization_reference: 'approved-contract' };
-const attempt = { id: 'attempt-1', status: 'completed', completed_at: '2026-11-11T00:00:00Z' };
+const attempt = { id: 'attempt-1', user_id: 'student-1', status: 'completed', completed_at: '2026-11-11T00:00:00Z' };
 const recipient = { id: 'recipient-1', tenant_institution_id: tenant, email: 'staff@example.edu', active: true, verified_at: '2026-11-11T00:00:00Z' };
 const args = { settings, attempt, studentTenantId: tenant, consentApproved: true, recipients: [recipient] };
 
@@ -29,6 +29,9 @@ test('disabled delivery and missing authorization fail closed', () => {
   assert.deepEqual(planInstitutionalDelivery({ ...args, settings: { ...settings, enabled: false } }), []);
   assert.deepEqual(planInstitutionalDelivery({ ...args, settings: { ...settings, authorization_reference: '' } }), []);
   assert.deepEqual(planInstitutionalDelivery({ ...args, consentApproved: false }), []);
+});
+test('completed assessments without an owner cannot plan delivery', () => {
+  assert.deepEqual(planInstitutionalDelivery({ ...args, attempt: { ...attempt, user_id: null } }), []);
 });
 test('incomplete attempts cannot trigger delivery', () => {
   assert.deepEqual(planInstitutionalDelivery({ ...args, attempt: { ...attempt, status: 'in_progress' } }), []);
