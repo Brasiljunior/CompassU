@@ -31,7 +31,7 @@ test('reconciliation deduplicates attempts and fails closed without valid assess
   };
   const result = await reconcileInstitutionalCompletions({ db, attemptIds: ['a', 'a', 'b'] });
   assert.equal(result.processed, 2);
-  assert.equal(result.queuedOrExisting, 0);
+  assert.equal(result.plannedOrExistingJobs, 0);
   assert.deepEqual(result.results.map(row => row.reason), ['assessment_not_completed', 'assessment_not_completed']);
   assert.equal(queries, 2);
 });
@@ -49,4 +49,24 @@ test('database failure is isolated and does not expose exception details', async
   const result = await reconcileInstitutionalCompletions({ db, attemptIds: ['a', 'b'] });
   assert.deepEqual(result.results.map(row => row.reason), ['processing_error', 'processing_error']);
   assert.equal(JSON.stringify(result).includes('sensitive database detail'), false);
+});
+
+test('reconciliation requires a bounded positive integer batch limit', async () => {
+  for (const maxBatch of [0, -1, 1.5, 101, '50']) {
+    await assert.rejects(
+      reconcileInstitutionalCompletions({ db: {}, attemptIds: [], maxBatch }),
+      /Invalid trusted reconciliation context/,
+    );
+  }
+});
+
+test('reconciliation rejects missing trusted database and non-array input', async () => {
+  await assert.rejects(
+    reconcileInstitutionalCompletions({ attemptIds: ['a'] }),
+    /Invalid trusted reconciliation context/,
+  );
+  await assert.rejects(
+    reconcileInstitutionalCompletions({ db: {}, attemptIds: 'a' }),
+    /Invalid trusted reconciliation context/,
+  );
 });
