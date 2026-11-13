@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 // Returns only report metadata, never student data or assessment responses.
 export async function GET(request) {
-  const bearer = request.headers.get('authorization')?.match(/^Bearer ([^\s]+)$/i)?.[1];
+  // Explicit opt-in; new report endpoints must remain closed until staged authorization review.\n  if (process.env.INSTITUTIONAL_REPORTS_ENABLED !== 'true') {\n    return Response.json({ error: 'Institutional reporting is not enabled' }, { status: 503, headers: { 'Cache-Control': 'no-store' } });\n  }\n  const bearer = request.headers.get('authorization')?.match(/^Bearer ([^\s]+)$/i)?.[1];
   if (!bearer) return Response.json({ error: 'Authentication required' }, { status: 401 });
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
