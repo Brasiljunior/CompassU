@@ -38,3 +38,25 @@ atomically snapshot that assignment against the specific assessment attempt.
 Do not backfill historical attempts from current account email, batch email
 delivery logs, or administrator invitations. Independently capture and verify
 per-attempt authorization; no notification should be queued without both.
+
+## Verified assessment completion integration point (2026-11-13)
+
+The student application `app/page.js` invokes
+`POST /rest/v1/rpc/finalize_assessment` with `p_attempt_id`. The staging
+database defines `public.finalize_assessment(p_attempt_id uuid)` as a
+`SECURITY INVOKER` PL/pgSQL function. It validates `auth.uid()` ownership,
+requires at least 80 saved answers, computes `major_matches`, then updates
+`assessment_attempts.status='completed'` and `completed_at`.
+
+**Integration design:** capture a trusted, immutable assessment-to-institution
+snapshot in the same database transaction as the successful completion,
+but only after a separately verified student assignment exists. Do not
+alter `finalize_assessment` until its existing scoring behavior, invocation
+privileges, and tenant-provenance source have been reviewed. Never infer
+consent from completion. Delivery authorization and institution settings
+must remain independent, disabled by default.
+
+The current `finalize_assessment` does **not** capture an institutional
+snapshot. A browser-triggered delivery call after finalization is not a
+substitute for trusted transaction-level capture. Historical attempts
+remain ineligible without independently verifiable provenance.
