@@ -10,6 +10,9 @@ export default function InstitutionalReportPage() {
 
   useEffect(() => {
     let cancelled = false;
+    // Clear previously authorized content whenever the report identifier changes.
+    setReport(null);
+    setStatus('Checking your institutional access…');
     async function load() {
       try {
         // CompassU uses its own compassu_session storage, not supabase-js storage.
@@ -45,7 +48,10 @@ export default function InstitutionalReportPage() {
           setStatus('Your institutional access was verified.');
         }
       } catch (error) {
-        if (!cancelled) setStatus(error.message || 'Unable to verify access.');
+        if (!cancelled) {
+          setReport(null);
+          setStatus(error.message || 'Unable to verify access.');
+        }
       }
     }
     if (jobId) load();
