@@ -57,7 +57,7 @@ create table if not exists public.institution_assessment_delivery_jobs (
   attempt_id uuid not null references public.assessment_attempts(id) on delete cascade,
   tenant_institution_id uuid not null references public.tenant_institutions(id) on delete cascade,
   recipient_id uuid not null,
-  report_type text not null check (report_type in ('full','summary')),
+  report_type text not null check (report_type = 'summary'),
   status text not null default 'queued'
     check (status in ('queued','processing','sent','failed','skipped')),
   retry_count integer not null default 0 check (retry_count >= 0),
