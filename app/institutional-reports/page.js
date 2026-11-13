@@ -48,7 +48,7 @@ export default function InstitutionalReportsHome() {
         const data = await response.json();
         if (!cancelled) {
           setReports(Array.isArray(data.reports) ? data.reports : []);
-          setStatus('Institutional report access verified.');
+          setStatus('Report list checked. Access to individual reports is verified separately.');
         }
       } catch (error) {
         if (!cancelled) setStatus(error.message || 'Unable to load institutional reports.');
@@ -72,7 +72,7 @@ export default function InstitutionalReportsHome() {
         {' — content not yet available'}
       </li>)}</ul>
     </section>}
-    {status === 'Institutional report access verified.' && reports.length === 0 &&
+    {status === 'Report list checked. Access to individual reports is verified separately.' && reports.length === 0 &&
       <p>No authorized institutional report records are available for your account.</p>}
     <p><a href="/">Return to CompassU</a></p>
   </main>;
