@@ -23,8 +23,8 @@ test('institutional delivery schema starts disabled and requires attempt-level a
   const affiliation = sql('institutional-assessment-affiliation-draft.sql');
   assert.match(schema, /enabled boolean not null default false/i);
   assert.match(schema, /active boolean not null default false/i);
-  assert.match(schema, /assessment_authorization_affiliation_match[\\s\\S]*?foreign key \\(attempt_id,tenant_institution_id\\)[\\s\\S]*?institution_assessment_affiliations\\(attempt_id,tenant_institution_id\\)/i);
-  assert.match(schema, /delivery_job_affiliation_match[\\s\\S]*?foreign key \\(attempt_id,tenant_institution_id\\)[\\s\\S]*?institution_assessment_affiliations\\(attempt_id,tenant_institution_id\\)/i);
+  assert.match(schema, /assessment_authorization_affiliation_match[\s\S]*?foreign key \(attempt_id,tenant_institution_id\)[\s\S]*?institution_assessment_affiliations\(attempt_id,tenant_institution_id\)/i);
+  assert.match(schema, /delivery_job_affiliation_match[\s\S]*?foreign key \(attempt_id,tenant_institution_id\)[\s\S]*?institution_assessment_affiliations\(attempt_id,tenant_institution_id\)/i);
   assert.match(affiliation, /create unique index if not exists institution_assessment_affiliations_attempt_tenant_key/i);
   for (const table of ['institution_assessment_authorizations', 'institution_assessment_delivery_settings',
     'institution_assessment_recipients', 'institution_assessment_delivery_jobs']) {
