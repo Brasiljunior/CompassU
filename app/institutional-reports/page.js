@@ -33,6 +33,8 @@ export default function InstitutionalReportsHome() {
   useEffect(() => {
     let cancelled = false;
     async function load() {
+      // Never retain a previous account's report metadata during revalidation.
+      if (!cancelled) { setReports([]); setStatus('Checking institutional access…'); }
       try {
         const token = await accessToken();
         if (!token) {
@@ -51,11 +53,19 @@ export default function InstitutionalReportsHome() {
           setStatus('Report list checked. Access to individual reports is verified separately.');
         }
       } catch (error) {
-        if (!cancelled) setStatus(error.message || 'Unable to load institutional reports.');
+        if (!cancelled) {
+          setReports([]);
+          setStatus(error.message || 'Unable to load institutional reports.');
+        }
       }
     }
     load();
-    return () => { cancelled = true; };
+    // Recheck the authenticated account after sign-in/sign-out in another tab.
+    const onSessionChange = (event) => {
+      if (event.key === 'compassu_session' || event.key === null) load();
+    };
+    window.addEventListener('storage', onSessionChange);
+    return () => { cancelled = true; window.removeEventListener('storage', onSessionChange); };
   }, []);
 
   return <main style={{ maxWidth: 760, margin: '64px auto', padding: 24, fontFamily: 'Arial, sans-serif' }}>
