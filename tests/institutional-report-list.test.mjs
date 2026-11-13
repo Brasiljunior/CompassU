@@ -81,19 +81,20 @@ function authorizedDb({ revoked = false, recipientActive = true, affiliationTena
   return {
     from(table) {
       const filters = [];
+      let rowLimit = Infinity;
       const query = {
         select() { return this; },
         eq(key, value) { filters.push(row => row[key] === value); return this; },
         in(key, values) { filters.push(row => values.includes(row[key])); return this; },
         not(key, op, value) { if (op === 'is' && value === null) filters.push(row => row[key] != null); return this; },
         order() { return this; },
-        limit() { return this; },
+        limit(n) { rowLimit = n; return this; },
         async maybeSingle() {
           const matching = (rows[table] || []).filter(row => filters.every(fn => fn(row)));
           return { data: matching[0] || null, error: null };
         },
         then(resolve, reject) {
-          return Promise.resolve({ data: (rows[table] || []).filter(row => filters.every(fn => fn(row))), error: null }).then(resolve, reject);
+          return Promise.resolve({ data: (rows[table] || []).filter(row => filters.every(fn => fn(row))).slice(0, rowLimit), error: null }).then(resolve, reject);
         },
       };
       return query;
@@ -136,6 +137,14 @@ test('report list hides previously sent reports when assessment affiliation no l
 test('legacy full-report jobs never appear in summary-only report listings', async () => {
   const reports = await listAuthorizedInstitutionalReports({
     db: authorizedDb({ includeLegacyFull: true }), authenticatedUserId: 'viewer-A',
+  });
+  assert.deepEqual(reports.map(report => report.id), ['job-A']);
+});
+
+test('unsupported full reports cannot consume the limited summary candidate window', async () => {
+  const db = authorizedDb({ includeLegacyFull: true });
+  const reports = await listAuthorizedInstitutionalReports({
+    db, authenticatedUserId: 'viewer-A', limit: 1,
   });
   assert.deepEqual(reports.map(report => report.id), ['job-A']);
 });
