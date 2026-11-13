@@ -26,7 +26,7 @@ revoke all on public.institution_assessment_affiliations from anon, authenticate
 -- A primary key alone does not prevent UPDATE reassignment.
 create or replace function public.prevent_institution_assessment_affiliation_reassignment()
 returns trigger language plpgsql security invoker set search_path = ''
-as $
+as $$
 begin
   if new.attempt_id is distinct from old.attempt_id
     or new.tenant_institution_id is distinct from old.tenant_institution_id
@@ -37,7 +37,7 @@ begin
   end if;
   return new;
 end;
-$;
+$$;
 revoke all on function public.prevent_institution_assessment_affiliation_reassignment()
   from public, anon, authenticated;
 drop trigger if exists prevent_institution_assessment_affiliation_reassignment
