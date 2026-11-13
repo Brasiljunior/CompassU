@@ -22,7 +22,7 @@ function dbFor({ status = 'completed', memberships = [] } = {}) {
         return {
           select() { return this; },
           eq() { return this; },
-          async limit() { return { data: memberships.map(tenant_institution_id => ({ tenant_institution_id })), error: null }; },
+          async then(resolve, reject) { return Promise.resolve({ data: memberships.map(tenant_institution_id => ({ tenant_institution_id })), error: null }).then(resolve, reject); },
         };
       }
       throw new Error('Unexpected institutional outbox access: ' + table);
@@ -88,4 +88,10 @@ test('single verified institution delegates to fail-closed delivery settings', a
   assert.deepEqual(result, { queued: 0, reason: 'authorization_not_confirmed' });
   assert.equal(reads.includes('institution_assessment_delivery_jobs'), false);
   assert.equal(reads.includes('institution_assessment_recipients'), false);
+});
+
+test('repeated memberships do not hide another active institution', async () => {
+  const db = dbFor({ memberships: ['tenant-1', 'tenant-1', 'tenant-2'] });
+  assert.deepEqual(await enqueueCompletedInstitutionalAssessment({ db, attemptId: 'attempt-1' }),
+    { queued: 0, reason: 'ambiguous_institution' });
 });
