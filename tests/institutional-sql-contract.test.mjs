@@ -45,3 +45,12 @@ test('institutional report API never exposes unsupported report metadata', () =>
   assert.match(route, /result\.reportType === 'summary'/);
   assert.match(route, /status: 404, headers: \{ 'Cache-Control': 'no-store' \}/);
 });
+
+test('changing a designated recipient email invalidates verification and deactivates delivery', () => {
+  const schema = sql('institutional-assessment-delivery-schema.sql');
+  assert.ok(schema.includes('institution_assessment_recipient_email_guard()'));
+  assert.ok(schema.includes('before update of email on public.institution_assessment_recipients'));
+  assert.ok(schema.includes('new.verified_at := null;'));
+  assert.ok(schema.includes('new.active := false;'));
+  assert.ok(schema.includes('lower(btrim(new.email)) is distinct from lower(btrim(old.email))'));
+});
