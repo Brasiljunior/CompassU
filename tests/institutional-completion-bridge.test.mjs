@@ -51,7 +51,7 @@ test('student with multiple institutions is not assigned a guessed recipient ins
 });
 
 test('missing trusted completion context is rejected', async () => {
-  await assert.rejects(enqueueCompletedInstitutionalAssessment({ attemptId: 'attempt-1' }), /Missing trusted/);
+  await assert.rejects(enqueueCompletedInstitutionalAssessment({ attemptId: 'attempt-1' }), /Missing or invalid trusted completion context/);
 });
 
 test('single verified institution delegates to fail-closed delivery settings', async () => {
