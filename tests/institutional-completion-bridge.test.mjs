@@ -67,12 +67,12 @@ test('single verified institution delegates to fail-closed delivery settings', a
         return {
           select() { return this; },
           eq() { return this; },
+          // Bridge awaits the full membership query; outbox uses limit(1).maybeSingle().
+          then(resolve, reject) {
+            return Promise.resolve({ data: [{ tenant_institution_id: 'tenant-1' }], error: null }).then(resolve, reject);
+          },
           limit() {
-            // Both bridge and outbox must independently validate the membership.
-            return {
-              then(resolve) { return Promise.resolve({ data: [{ tenant_institution_id: 'tenant-1' }], error: null }).then(resolve); },
-              async maybeSingle() { return { data: { tenant_institution_id: 'tenant-1', active: true }, error: null }; },
-            };
+            return { async maybeSingle() { return { data: { tenant_institution_id: 'tenant-1', active: true }, error: null }; } };
           },
         };
       }
