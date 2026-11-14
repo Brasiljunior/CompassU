@@ -66,6 +66,17 @@ jobs:
           echo "Institutional tests: $INSTITUTIONAL"
           echo "Pilot regressions: $PILOT"
           echo "Next.js build: $BUILD"
+          {
+            echo '## Institutional Assessment Results Delivery — Phase 1'
+            echo ''
+            echo '| Gate | Result |'
+            echo '| --- | --- |'
+            echo "| Institutional delivery tests | $INSTITUTIONAL |"
+            echo "| Existing pilot regressions | $PILOT |"
+            echo "| Next.js production build | $BUILD |"
+            echo ''
+            echo 'All three gates must pass before Phase 1 is complete.'
+          } >> "$GITHUB_STEP_SUMMARY"
           if [ "$INSTITUTIONAL" != success ] || [ "$PILOT" != success ] || [ "$BUILD" != success ]; then
             echo 'Phase 1 failed: all three gates must pass.'
             exit 1
