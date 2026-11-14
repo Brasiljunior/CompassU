@@ -106,3 +106,25 @@ test('wrong institution in loaded report never sends',async()=>{
   assert.equal(sent,false);
   assert.equal(db.updates[0].last_error_code,'configuration_error');
 });
+
+test('unsafe report header fails permanently without sending',async()=>{
+  const db=fakeDb(rows);
+  let sent=false;
+  const sections=Object.fromEntries([
+    'personalityTraits','careerClusters','recommendedMajors','careerOptions',
+    'academicStrengths','values','collegeDestinations','recommendedCourses',
+    'whyThisPathPointsNorth',
+  ].map(key=>[key,'Synthetic '+key]));
+  const result=await processClaimedInstitutionalJob({db,job,
+    loadCompletedStudentReport:async({attemptId,studentUserId})=>({
+      attemptId,studentUserId,completedAt:rows.assessment_attempts.completed_at,
+      studentName:'Synthetic\\nBcc: outsider@example.edu',institutionName:'Example College',
+      tenantInstitutionId:'institution-1',sections,
+    }),
+    sendEmail:async()=>{sent=true;return {id:'unexpected'};},
+  });
+  assert.equal(result.status,'skipped');
+  assert.equal(sent,false);
+  assert.equal(db.updates[0].last_error_code,'configuration_error');
+  assert.equal(db.updates[0].next_attempt_at,undefined);
+});
