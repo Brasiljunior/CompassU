@@ -11,10 +11,8 @@ with checks as (
       where schemaname='public' and tablename='assessment_attempts'
         and cmd='UPDATE' and policyname='users_update_own_attempts'
     ) as owner_update_policy_present,
-    (select prosecdef from pg_proc p join pg_namespace n on n.oid=p.pronamespace
-      where n.nspname='public' and p.proname='finalize_assessment'
-        and pg_get_function_identity_arguments(p.oid)='p_attempt_id uuid'
-      limit 1) as finalize_security_definer
+    (select prosecdef from pg_proc
+      where oid = to_regprocedure('public.finalize_assessment(uuid)')) as finalize_security_definer
 )
 select *,
   (not direct_status_update
