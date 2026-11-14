@@ -108,3 +108,9 @@ test('recipient email guard uses valid PostgreSQL dollar quoting', () => {
   assert.match(draft, /new\.active := false;[\s\S]*?end;\s*\$\$;/i);
   assert.doesNotMatch(draft, /\bas \$\s*begin/i);
 });
+
+
+test('verified assignment timestamps cannot postdate the stored assignment', () => {
+  const draft = sql('institutional-student-assignment-design.sql');
+  assert.match(draft, /constraint student_assignment_verified_before_recorded\s+check \(verified_at <= assigned_at\)/i);
+});
