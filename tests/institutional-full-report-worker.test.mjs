@@ -61,3 +61,27 @@ test('missing trusted loader cannot trigger full-report email',async()=>{
   assert.equal(sent,false);
   assert.equal(db.updates[0].last_error_code,'configuration_error');
 });
+
+test('complete synthetic report is delivered in email body to designated recipient',async()=>{
+  const db=fakeDb(rows);
+  const sections=Object.fromEntries([
+    'personalityTraits','careerClusters','recommendedMajors','careerOptions',
+    'academicStrengths','values','collegeDestinations','recommendedCourses',
+    'whyThisPathPointsNorth',
+  ].map(key=>[key,'Synthetic result: '+key]));
+  let delivered;
+  const result=await processClaimedInstitutionalJob({db,job,
+    fromAddress:'results@example.edu',
+    loadCompletedStudentReport:async({attemptId,studentUserId})=>{
+      assert.equal(attemptId,'attempt-1');
+      assert.equal(studentUserId,'student-1');
+      return {attemptId,studentUserId,completedAt:rows.assessment_attempts.completed_at,
+        studentName:'Synthetic Student',institutionName:'Example College',sections};
+    },
+    sendEmail:async message=>{delivered=message;return {id:'synthetic-provider-id'};},
+  });
+  assert.equal(result.status,'sent');
+  assert.deepEqual(delivered.to,['staff@example.edu']);
+  for(const content of Object.values(sections)) assert.ok(delivered.text.includes(content));
+  assert.equal(db.updates[0].provider_message_id,'synthetic-provider-id');
+});
