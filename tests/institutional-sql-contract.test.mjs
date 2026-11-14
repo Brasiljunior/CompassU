@@ -83,3 +83,11 @@ test('phase two readiness report is read-only and checks every institutional del
   }
   assert.doesNotMatch(report, /^\s*(?:insert|update|delete|alter|create|drop|truncate)\s/mi);
 });
+
+test('verified student assignment cannot be silently reassigned', () => {
+  const draft = sql('institutional-student-assignment-design.sql');
+  assert.match(draft, /create or replace function public\.prevent_institution_student_assignment_update\(\)/i);
+  assert.match(draft, /before update on public\.institution_student_assignments/i);
+  assert.match(draft, /raise exception 'Verified institutional student assignment is immutable'/i);
+  assert.match(draft, /revoke all on function public\.prevent_institution_student_assignment_update\(\)/i);
+});
