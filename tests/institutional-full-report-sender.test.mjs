@@ -24,16 +24,16 @@ const base = {
     authorization_reference:'synthetic-institution-approval'},
   studentName:'Synthetic Student',institutionName:'Example College',sections,
 };
-test('full report delivery fails closed while dispatch policy supports summary only',async()=>{
+test('full report preview does not send',async()=>{
   let called=false;
-  const result=await sendInstitutionalFullReport({...base,dryRun:false,
+  const result=await sendInstitutionalFullReport({...base,
     fromAddress:'sender@example.edu',sendEmail:async()=>{called=true;return {id:'id'};}});
-  assert.deepEqual(result,{status:'skipped',reason:'authorization_denied'});
+  assert.equal(result.status,'preview');
   assert.equal(called,false);
 });
 test('a caller-supplied authorized boolean cannot bypass the policy',async()=>{
   let called=false;
-  const result=await sendInstitutionalFullReport({...base,authorized:true,dryRun:false,
+  const result=await sendInstitutionalFullReport({...base,authorized:true,authorization:{...base.authorization,revoked_at:'2026-11-14'},dryRun:false,
     fromAddress:'sender@example.edu',sendEmail:async()=>{called=true;return {id:'id'};}});
   assert.equal(result.status,'skipped');
   assert.equal(called,false);
@@ -42,4 +42,14 @@ test('cross-institution recipient remains blocked',async()=>{
   const result=await sendInstitutionalFullReport({...base,
     recipient:{...base.recipient,tenant_institution_id:'other'}});
   assert.equal(result.status,'skipped');
+});
+
+test('explicitly enabled synthetic send passes complete report body to one recipient',async()=>{
+  let payload;
+  const result=await sendInstitutionalFullReport({...base,dryRun:false,
+    fromAddress:'sender@example.edu',sendEmail:async p=>{payload=p;return {id:'synthetic-id'};}});
+  assert.equal(result.status,'sent');
+  assert.deepEqual(payload.to,['representative@example.edu']);
+  assert.equal(payload.idempotencyKey,'institutional-full-report/attempt-1/recipient-1');
+  for(const value of Object.values(sections)) assert.ok(payload.text.includes(value));
 });
