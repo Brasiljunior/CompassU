@@ -39,10 +39,13 @@ jobs:
           node-version: '24'
       - name: Install dependencies
         run: npm ci --ignore-scripts
+      - name: Verify institutional test source parses
+        run: |
+          for test_file in tests/institutional*.test.mjs; do
+            node --check "$test_file"
+          done
       - name: Run institutional delivery policy tests
         run: npm run test:institutional-delivery
-      - name: Verify test source parses
-        run: node --check tests/institutional-assessment-delivery.test.mjs && node --check tests/institutional-sql-contract.test.mjs
       - name: Run existing pilot regression tests
         run: npm run test:pilot
       - name: Validate Next.js production build
