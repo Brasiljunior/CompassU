@@ -36,3 +36,12 @@ test('invalid completion metadata fails closed', () => {
     completedAt:'not a date',sections,
   }),/completion date/);
 });
+
+test('student name cannot inject email headers', () => {
+  for (const studentName of ['Student\\r\\nBcc: attacker@example.com', 'Student\\nInjected', 'Student\\u2028Injected']) {
+    assert.throws(() => buildInstitutionalFullReportEmail({
+      studentName, institutionName:'Example College',
+      completedAt:'2026-11-14T20:00:00Z', sections,
+    }), /Invalid email header field/);
+  }
+});
