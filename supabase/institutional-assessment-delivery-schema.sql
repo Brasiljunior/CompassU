@@ -39,7 +39,7 @@ create unique index if not exists institution_assessment_recipients_unique_email
 create or replace function public.institution_assessment_recipient_email_guard()
 returns trigger
 language plpgsql
-as $
+as $$
 begin
   if lower(btrim(new.email)) is distinct from lower(btrim(old.email)) then
     new.verified_at := null;
@@ -47,7 +47,7 @@ begin
   end if;
   return new;
 end;
-$;
+$$;
 
 drop trigger if exists institution_assessment_recipient_email_guard_trigger
   on public.institution_assessment_recipients;
