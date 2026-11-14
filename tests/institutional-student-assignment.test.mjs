@@ -47,6 +47,7 @@ test('missing, mismatched, or unverified assignments fail closed', async () => {
     { ...valid, evidence_reference: '  ' },
     { ...valid, verified_at: null },
     { ...valid, verified_at: 'not-a-date' },
+    { ...valid, verified_at: '2999-01-01T00:00:00Z' },
   ]) {
     const db = fixture(row);
     assert.deepEqual(await resolveVerifiedStudentAssignment({ db, userId: 'student-1' }), {
