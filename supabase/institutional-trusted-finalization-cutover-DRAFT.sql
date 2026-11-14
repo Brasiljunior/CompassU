@@ -9,6 +9,7 @@ declare
   v_user uuid := auth.uid();
   v_attempt public.assessment_attempts%rowtype;
   v_assignment public.institution_student_assignments%rowtype;
+  v_completed_at timestamptz;
 begin
   if v_user is null then raise exception 'Authentication required'; end if;
   select * into v_attempt from public.assessment_attempts a
@@ -32,8 +33,9 @@ begin
     insert into public.major_matches(attempt_id,user_id,major_id,match_score,rank,explanation)
     select p_attempt_id,v_user,s.major_id,s.match_score,s.rank,null
     from public.score_assessment(p_attempt_id) s where s.rank<=10;
+    v_completed_at := now();
     update public.assessment_attempts
-    set status='completed', completed_at=now(), scoring_version='v2'
+    set status='completed', completed_at=v_completed_at, scoring_version='v2'
     where id=p_attempt_id and user_id=v_user;
 
     -- Only independently verified student assignments can become immutable
@@ -42,16 +44,25 @@ begin
       where a.user_id=v_user
         and a.verified_at is not null
         and a.verified_at <= a.assigned_at
-        and a.verified_at <= now()
+        and a.verified_at <= v_completed_at
         and nullif(btrim(a.evidence_reference),'') is not null;
     if found then
       insert into public.institution_assessment_affiliations
         (attempt_id,tenant_institution_id,evidence_reference,recorded_at,recorded_by)
       values (p_attempt_id,v_assignment.tenant_institution_id,
-              v_assignment.evidence_reference,now(),v_user);
+              v_assignment.evidence_reference,v_completed_at,v_user);
     end if;
   elsif v_attempt.completed_at is null then
     raise exception 'Invalid assessment completion state';
+  elsif not exists (
+    select 1 from public.major_matches mm
+    where mm.attempt_id=p_attempt_id and mm.user_id=v_user
+  ) then
+    -- Preserve existing loadResults fallback for completed attempts with
+    -- missing matches; this is NOT a new completion or affiliation snapshot.
+    insert into public.major_matches(attempt_id,user_id,major_id,match_score,rank,explanation)
+    select p_attempt_id,v_user,s.major_id,s.match_score,s.rank,null
+    from public.score_assessment(p_attempt_id) s where s.rank<=10;
   end if;
 
   return query select mm.major_id,m.name,mm.match_score,mm.rank
