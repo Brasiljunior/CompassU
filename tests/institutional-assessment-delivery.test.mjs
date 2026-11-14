@@ -325,7 +325,7 @@ test('report lookup denies non-designated viewer before reading authorization', 
     return { select() { return this; }, eq() { return this; },
       async maybeSingle() {
         if (table === 'institution_assessment_delivery_jobs') {
-          return { data: { id: 'job-1', attempt_id: 'attempt-1', tenant_institution_id: 'institution-A', recipient_id: 'recipient-1', status: 'sent' }, error: null };
+          return { data: { id: 'job-1', attempt_id: 'attempt-1', tenant_institution_id: 'institution-A', recipient_id: 'recipient-1', report_type: 'summary', status: 'sent' }, error: null };
         }
         return { data: { id: 'recipient-1', user_id: 'other-user', active: true, verified_at: '2026-11-11', tenant_institution_id: 'institution-A' }, error: null };
       } };
