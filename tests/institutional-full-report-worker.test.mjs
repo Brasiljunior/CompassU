@@ -85,3 +85,24 @@ test('complete synthetic report is delivered in email body to designated recipie
   for(const content of Object.values(sections)) assert.ok(delivered.text.includes(content));
   assert.equal(db.updates[0].provider_message_id,'synthetic-provider-id');
 });
+
+test('wrong institution in loaded report never sends',async()=>{
+  const db=fakeDb(rows);
+  let sent=false;
+  const result=await processClaimedInstitutionalJob({db,job,
+    loadCompletedStudentReport:async({attemptId,studentUserId})=>({
+      attemptId,studentUserId,completedAt:rows.assessment_attempts.completed_at,
+      studentName:'Synthetic Student',institutionName:'Example College',
+      tenantInstitutionId:'other-institution',
+      sections:Object.fromEntries([
+        'personalityTraits','careerClusters','recommendedMajors','careerOptions',
+        'academicStrengths','values','collegeDestinations','recommendedCourses',
+        'whyThisPathPointsNorth',
+      ].map(key=>[key,'Synthetic '+key])),
+    }),
+    sendEmail:async()=>{sent=true;return {id:'unexpected'};},
+  });
+  assert.equal(result.status,'skipped');
+  assert.equal(sent,false);
+  assert.equal(db.updates[0].last_error_code,'configuration_error');
+});
