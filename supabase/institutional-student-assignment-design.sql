@@ -40,4 +40,4 @@ for each row execute function public.prevent_institution_student_assignment_upda
 -- Do not replace this with a broadly executable SECURITY DEFINER RPC.
 -- Implement a narrow, reviewed trusted transaction after provenance and
 -- independent consent requirements have been validated in staging.
--- No trigger, function, or backfill is created by this assignment draft.
+-- No assessment-completion trigger, snapshot function, or backfill is created\n-- by this assignment draft. The assignment UPDATE guard above is intentional.
