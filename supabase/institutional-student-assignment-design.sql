@@ -17,11 +17,11 @@ revoke all on public.institution_student_assignments from anon, authenticated;
 -- Changes require an explicitly audited revocation/reassignment workflow.
 create or replace function public.prevent_institution_student_assignment_update()
 returns trigger language plpgsql security invoker set search_path = ''
-as $
+as $$
 begin
   raise exception 'Verified institutional student assignment is immutable';
 end;
-$;
+$$;
 revoke all on function public.prevent_institution_student_assignment_update()
   from public, anon, authenticated;
 drop trigger if exists prevent_institution_student_assignment_update
@@ -40,4 +40,5 @@ for each row execute function public.prevent_institution_student_assignment_upda
 -- Do not replace this with a broadly executable SECURITY DEFINER RPC.
 -- Implement a narrow, reviewed trusted transaction after provenance and
 -- independent consent requirements have been validated in staging.
--- No assessment-completion trigger, snapshot function, or backfill is created\n-- by this assignment draft. The assignment UPDATE guard above is intentional.
+-- No assessment-completion trigger, snapshot function, or backfill is created
+-- by this assignment draft. The assignment UPDATE guard above is intentional.
