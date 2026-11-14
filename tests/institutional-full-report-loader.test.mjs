@@ -11,7 +11,7 @@ const sections=Object.fromEntries([
 ].map(key=>[key,'Synthetic '+key]));
 const report={attemptId:attempt.id,studentUserId:attempt.user_id,
   completedAt:attempt.completed_at,studentName:'Synthetic Student',
-  institutionName:'Synthetic College',sections};
+  institutionName:'Synthetic College',tenantInstitutionId:'institution-1',sections};
 test('trusted loader accepts complete report matching completed attempt',async()=>{
   const result=await loadInstitutionalFullReport({attempt,
     loadCompletedStudentReport:async args=>{
