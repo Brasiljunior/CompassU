@@ -13,6 +13,23 @@ create table if not exists public.institution_student_assignments (
 alter table public.institution_student_assignments enable row level security;
 revoke all on public.institution_student_assignments from anon, authenticated;
 
+-- A verified assignment is a provenance record, not a mutable account preference.
+-- Changes require an explicitly audited revocation/reassignment workflow.
+create or replace function public.prevent_institution_student_assignment_update()
+returns trigger language plpgsql security invoker set search_path = ''
+as $
+begin
+  raise exception 'Verified institutional student assignment is immutable';
+end;
+$;
+revoke all on function public.prevent_institution_student_assignment_update()
+  from public, anon, authenticated;
+drop trigger if exists prevent_institution_student_assignment_update
+  on public.institution_student_assignments;
+create trigger prevent_institution_student_assignment_update
+before update on public.institution_student_assignments
+for each row execute function public.prevent_institution_student_assignment_update();
+
 -- Capture the verified student assignment only during the initial transition
 -- to completed, within the same transaction. Missing evidence leaves the
 -- assessment completed but ineligible for institutional delivery.
