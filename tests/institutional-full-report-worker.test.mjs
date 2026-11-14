@@ -76,7 +76,7 @@ test('complete synthetic report is delivered in email body to designated recipie
       assert.equal(attemptId,'attempt-1');
       assert.equal(studentUserId,'student-1');
       return {attemptId,studentUserId,completedAt:rows.assessment_attempts.completed_at,
-        studentName:'Synthetic Student',institutionName:'Example College',sections};
+        studentName:'Synthetic Student',institutionName:'Example College',tenantInstitutionId:'institution-1',sections};
     },
     sendEmail:async message=>{delivered=message;return {id:'synthetic-provider-id'};},
   });
