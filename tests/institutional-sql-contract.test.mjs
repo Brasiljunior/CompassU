@@ -58,3 +58,28 @@ test('changing a designated recipient email invalidates verification and deactiv
   assert.ok(schema.includes('new.active := false;'));
   assert.ok(schema.includes('pg_catalog.lower(pg_catalog.btrim(new.email)) is distinct from pg_catalog.lower(pg_catalog.btrim(old.email))'));
 });
+
+test('draft student assignment remains privileged and never backfills from mutable identities', () => {
+  const draft = sql('institutional-student-assignment-design.sql');
+  assert.match(draft, /create table if not exists public\.institution_student_assignments/i);
+  assert.match(draft, /user_id uuid primary key references auth\.users\(id\)/i);
+  assert.match(draft, /tenant_institution_id uuid not null references public\.tenant_institutions\(id\)/i);
+  assert.match(draft, /evidence_reference text not null/i);
+  assert.match(draft, /verified_at timestamptz not null/i);
+  assert.match(draft, /alter table public\.institution_student_assignments enable row level security/i);
+  assert.match(draft, /revoke all on public\.institution_student_assignments from anon, authenticated/i);
+  assert.doesNotMatch(draft, /insert\s+into\s+public\.institution_student_assignments\s+select/i);
+  assert.doesNotMatch(draft, /create\s+trigger\s+\w+\s+(before|after)\s+update\s+on\s+public\.assessment_attempts/i);
+  assert.match(draft, /security invoker set search_path = ''/i);
+  assert.match(draft, /revoke all on function public\.capture_institution_assessment_affiliation\(\)/i);
+});
+
+test('phase two readiness report is read-only and checks every institutional delivery table', () => {
+  const report = sql('institutional-delivery-phase2-readiness.sql');
+  for (const table of ['institution_assessment_affiliations','institution_assessment_delivery_settings',
+    'institution_assessment_recipients','institution_assessment_authorizations',
+    'institution_assessment_delivery_jobs']) {
+    assert.ok(report.includes("to_regclass('public." + table + "')"));
+  }
+  assert.doesNotMatch(report, /^\s*(?:insert|update|delete|alter|create|drop|truncate)\s/mi);
+});
