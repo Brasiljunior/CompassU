@@ -30,37 +30,14 @@ create trigger prevent_institution_student_assignment_update
 before update on public.institution_student_assignments
 for each row execute function public.prevent_institution_student_assignment_update();
 
--- Capture the verified student assignment only during the initial transition
--- to completed, within the same transaction. Missing evidence leaves the
--- assessment completed but ineligible for institutional delivery.
--- A trigger cannot establish independent report-sharing consent.
-create or replace function public.capture_institution_assessment_affiliation()
-returns trigger language plpgsql security invoker set search_path = ''
-as $$
-declare
-  v_assignment record;
-begin
-  if new.status = 'completed' and old.status is distinct from 'completed' then
-    select a.tenant_institution_id, a.evidence_reference, a.assigned_by
-      into v_assignment
-      from public.institution_student_assignments a
-      where a.user_id = new.user_id
-        and a.verified_at is not null
-        and nullif(pg_catalog.btrim(a.evidence_reference),'') is not null;
-    if found then
-      insert into public.institution_assessment_affiliations
-        (attempt_id,tenant_institution_id,evidence_reference,recorded_by)
-      values (new.id,v_assignment.tenant_institution_id,
-              v_assignment.evidence_reference,v_assignment.assigned_by);
-    end if;
-  end if;
-  return new;
-end;
-$$;
-revoke all on function public.capture_institution_assessment_affiliation()
-  from public, anon, authenticated;
--- IMPORTANT: Do not install the trigger until finalize_assessment has been
--- reviewed for privileges. SECURITY INVOKER trigger inherits caller rights;
--- authenticated students cannot insert into the restricted snapshot table.
--- Implement the snapshot through a narrowly scoped trusted transaction
--- after reviewing the completion RPC, rather than granting students write access.
+-- Completion-time snapshot integration is intentionally NOT installed here.
+-- finalize_assessment is SECURITY INVOKER and runs with student permissions.
+-- A SECURITY INVOKER trigger attempting to insert into the restricted
+-- institution_assessment_affiliations table would raise permission denied,
+-- rolling back a legitimate student's assessment completion.
+--
+-- Do not grant authenticated users INSERT on the snapshot table.
+-- Do not replace this with a broadly executable SECURITY DEFINER RPC.
+-- Implement a narrow, reviewed trusted transaction after provenance and
+-- independent consent requirements have been validated in staging.
+-- No trigger, function, or backfill is created by this assignment draft.
