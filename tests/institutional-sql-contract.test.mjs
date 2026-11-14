@@ -100,3 +100,11 @@ test('student assignment trigger uses valid PostgreSQL dollar quoting', () => {
   assert.match(draft, /raise exception 'Verified institutional student assignment is immutable';\s*end;\s*\$\$;/i);
   assert.doesNotMatch(draft, /\bas \$\s*begin/i);
 });
+
+
+test('recipient email guard uses valid PostgreSQL dollar quoting', () => {
+  const draft = sql('institutional-assessment-delivery-schema.sql');
+  assert.match(draft, /function public\.institution_assessment_recipient_email_guard\(\)[\s\S]*?as \$\$\s*begin/i);
+  assert.match(draft, /new\.active := false;[\s\S]*?end;\s*\$\$;/i);
+  assert.doesNotMatch(draft, /\bas \$\s*begin/i);
+});
