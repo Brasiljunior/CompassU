@@ -51,6 +51,13 @@ test('missing snapshot is not backfilled from current assignment', async () => {
   assert.equal(db.reads.includes('institution_assessment_delivery_jobs'), false);
 });
 
+test('assignment verified after assessment completion cannot establish historical affiliation', async () => {
+  const db = dbFor({ s: { ...assignment, verified_at: '2026-11-14T11:00:00Z' } });
+  assert.deepEqual(await inspectInstitutionalCompletionReadiness({ db, attemptId: 'a1' }),
+    { ready: false, reason: 'assignment_not_verified_at_completion' });
+  assert.deepEqual(db.reads, ['assessment_attempts','institution_student_assignments']);
+});
+
 test('institution reassignment conflicts fail closed without writing', async () => {
   const db = dbFor({ snap: { ...snapshot, tenant_institution_id: 't2' } });
   assert.deepEqual(await inspectInstitutionalCompletionReadiness({ db, attemptId: 'a1' }),
