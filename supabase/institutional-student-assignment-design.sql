@@ -8,6 +8,8 @@ create table if not exists public.institution_student_assignments (
   evidence_reference text not null check (nullif(btrim(evidence_reference),'') is not null),
   verified_at timestamptz not null,
   assigned_at timestamptz not null default now(),
+  constraint student_assignment_verified_before_recorded
+    check (verified_at <= assigned_at),
   assigned_by uuid references auth.users(id)
 );
 alter table public.institution_student_assignments enable row level security;
