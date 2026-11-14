@@ -71,7 +71,8 @@ test('draft student assignment remains privileged and never backfills from mutab
   assert.doesNotMatch(draft, /insert\s+into\s+public\.institution_student_assignments\s+select/i);
   assert.doesNotMatch(draft, /create\s+trigger\s+\w+\s+(before|after)\s+update\s+on\s+public\.assessment_attempts/i);
   assert.match(draft, /security invoker set search_path = ''/i);
-  assert.match(draft, /revoke all on function public\.capture_institution_assessment_affiliation\(\)/i);
+  assert.doesNotMatch(draft, /create or replace function public\.capture_institution_assessment_affiliation\(\)/i);
+  assert.doesNotMatch(draft, /create\s+trigger\s+\w+\s+(?:before|after)\s+update\s+on\s+public\.assessment_attempts/i);
 });
 
 test('phase two readiness report is read-only and checks every institutional delivery table', () => {
