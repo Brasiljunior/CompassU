@@ -2,8 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { captureCompletedAssessmentAffiliation } from '../lib/institutionalCompletionSnapshotCapture.mjs';
 
-const attempt = { id: 'a1', user_id: 'u1', status: 'completed', completed_at: '2026-11-14T10:00:00Z' };
-const assignment = { user_id: 'u1', tenant_institution_id: 't1', evidence_reference: 'verified-onboarding', verified_at: '2026-11-14T09:00:00Z' };
+const completedAt = new Date(Date.now() - 60_000).toISOString();
+const verifiedAt = new Date(Date.now() - 120_000).toISOString();
+const attempt = { id: 'a1', user_id: 'u1', status: 'completed', completed_at: completedAt };
+const assignment = { user_id: 'u1', tenant_institution_id: 't1', evidence_reference: 'verified-onboarding', verified_at: verifiedAt };
 function fakeDb({ a = attempt, s = assignment, snapshot = null } = {}) {
   const inserts = [];
   const rows = { assessment_attempts: a, institution_student_assignments: s, institution_assessment_affiliations: snapshot };
@@ -35,7 +37,7 @@ test('refuses to capture from a mismatched student', async () => {
   assert.equal(db.inserts.length, 0);
 });
 test('refuses retroactive institutional verification', async () => {
-  const db = fakeDb({ s: { ...assignment, verified_at: '2026-11-14T11:00:00Z' } });
+  const db = fakeDb({ s: { ...assignment, verified_at: new Date(Date.now() - 30_000).toISOString() } });
   assert.deepEqual(await captureCompletedAssessmentAffiliation({ db, attemptId: 'a1', completedUserId: 'u1' }),
     { captured: false, reason: 'assignment_not_verified_at_completion' });
   assert.equal(db.inserts.length, 0);
@@ -44,5 +46,13 @@ test('refuses to replace conflicting historical snapshot', async () => {
   const db = fakeDb({ snapshot: { attempt_id: 'a1', tenant_institution_id: 't2', evidence_reference: 'other' } });
   assert.deepEqual(await captureCompletedAssessmentAffiliation({ db, attemptId: 'a1', completedUserId: 'u1' }),
     { captured: false, reason: 'immutable_snapshot_conflict' });
+  assert.equal(db.inserts.length, 0);
+});
+
+
+test('refuses to backfill a completed assessment from an old event', async () => {
+  const db = fakeDb({ a: { ...attempt, completed_at: new Date(Date.now() - 86_400_000).toISOString() } });
+  assert.deepEqual(await captureCompletedAssessmentAffiliation({ db, attemptId: 'a1', completedUserId: 'u1' }),
+    { captured: false, reason: 'completion_event_not_fresh' });
   assert.equal(db.inserts.length, 0);
 });
