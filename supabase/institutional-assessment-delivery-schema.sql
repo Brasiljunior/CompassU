@@ -38,16 +38,18 @@ create unique index if not exists institution_assessment_recipients_unique_email
 -- A changed address must be reverified before it can receive any notification.
 create or replace function public.institution_assessment_recipient_email_guard()
 returns trigger
-language plpgsql
-as $$
+language plpgsql security invoker set search_path = ''
+as $
 begin
-  if lower(btrim(new.email)) is distinct from lower(btrim(old.email)) then
+  if pg_catalog.lower(pg_catalog.btrim(new.email)) is distinct from pg_catalog.lower(pg_catalog.btrim(old.email)) then
     new.verified_at := null;
     new.active := false;
   end if;
   return new;
 end;
-$$;
+$;
+revoke all on function public.institution_assessment_recipient_email_guard()
+  from public, anon, authenticated;
 
 drop trigger if exists institution_assessment_recipient_email_guard_trigger
   on public.institution_assessment_recipients;
