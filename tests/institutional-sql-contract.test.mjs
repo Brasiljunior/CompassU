@@ -51,8 +51,10 @@ test('changing a designated recipient email invalidates verification and deactiv
   assert.ok(schema.includes('institution_assessment_recipient_email_guard()'));
   assert.match(schema, /create or replace function public\.institution_assessment_recipient_email_guard\(\)[\s\S]*?as \$\$\s*begin[\s\S]*?end;\s*\$\$;/i);
   assert.doesNotMatch(schema, /as \$\s*begin/i);
+  assert.ok(schema.includes("language plpgsql security invoker set search_path = ''"));
+  assert.ok(schema.includes('revoke all on function public.institution_assessment_recipient_email_guard()'));
   assert.ok(schema.includes('before update of email on public.institution_assessment_recipients'));
   assert.ok(schema.includes('new.verified_at := null;'));
   assert.ok(schema.includes('new.active := false;'));
-  assert.ok(schema.includes('lower(btrim(new.email)) is distinct from lower(btrim(old.email))'));
+  assert.ok(schema.includes('pg_catalog.lower(pg_catalog.btrim(new.email)) is distinct from pg_catalog.lower(pg_catalog.btrim(old.email))'));
 });
