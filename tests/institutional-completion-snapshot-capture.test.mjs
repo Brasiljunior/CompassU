@@ -56,3 +56,14 @@ test('refuses to backfill a completed assessment from an old event', async () =>
     { captured: false, reason: 'completion_event_not_fresh' });
   assert.equal(db.inserts.length, 0);
 });
+
+test('an old completion with an identical existing snapshot is idempotent', async () => {
+  const db = fakeDb({
+    a: { ...attempt, completed_at: new Date(Date.now() - 86_400_000).toISOString() },
+    s: { ...assignment, verified_at: new Date(Date.now() - 172_800_000).toISOString() },
+    snapshot: { attempt_id: 'a1', tenant_institution_id: 't1', evidence_reference: 'verified-onboarding' },
+  });
+  assert.deepEqual(await captureCompletedAssessmentAffiliation({ db, attemptId: 'a1', completedUserId: 'u1' }),
+    { captured: true, reason: 'already_captured' });
+  assert.equal(db.inserts.length, 0);
+});
