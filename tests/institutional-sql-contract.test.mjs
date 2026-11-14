@@ -92,3 +92,11 @@ test('verified student assignment cannot be silently reassigned', () => {
   assert.match(draft, /raise exception 'Verified institutional student assignment is immutable'/i);
   assert.match(draft, /revoke all on function public\.prevent_institution_student_assignment_update\(\)/i);
 });
+
+
+test('student assignment trigger uses valid PostgreSQL dollar quoting', () => {
+  const draft = sql('institutional-student-assignment-design.sql');
+  assert.match(draft, /returns trigger language plpgsql security invoker set search_path = ''\s*as \$\$\s*begin/i);
+  assert.match(draft, /raise exception 'Verified institutional student assignment is immutable';\s*end;\s*\$\$;/i);
+  assert.doesNotMatch(draft, /\bas \$\s*begin/i);
+});
