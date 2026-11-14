@@ -36,6 +36,7 @@ test('verified assignment resolves only from privileged student assignment table
   assert.deepEqual(await resolveVerifiedStudentAssignment({ db, userId: 'student-1' }), {
     verified: true, tenantInstitutionId: 'tenant-1',
     evidenceReference: 'trusted-onboarding-1',
+    verifiedAt: '2026-11-14T12:00:00Z',
   });
   assert.deepEqual(db.reads, ['institution_student_assignments']);
 });
