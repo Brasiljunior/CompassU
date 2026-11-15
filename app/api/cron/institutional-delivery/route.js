@@ -8,7 +8,7 @@ export async function GET(request){
  const secret=process.env.CRON_SECRET;
  if(!secret||request.headers.get('authorization')!==`Bearer ${secret}`)
   return NextResponse.json({error:'Unauthorized'},{status:401});
- const url=process.env.NEXT_PUBLIC_SUPABASE_URL||process.env.SUPABASE_URL;
+ const url=process.env.NEXT_PUBLIC_SUPABASE_URL||process.env.SUPABASE_URL||'https://xvvgalifibyqwebasalx.supabase.co';
  const key=process.env.SUPABASE_SERVICE_ROLE_KEY;
  if(!url||!key)return NextResponse.json({error:'Delivery service unavailable'},{status:503});
  try{
