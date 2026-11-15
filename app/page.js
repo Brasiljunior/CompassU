@@ -185,6 +185,7 @@ export default function Home() {
     [questions, setQuestions] = useState([]),
     [questionIndex, setQuestionIndex] = useState(0),
     [answers, setAnswers] = useState({}),
+    [shareWithHomeInstitution, setShareWithHomeInstitution] = useState(false),
     [attempt, setAttempt] = useState(null),
     [attemptId, setAttemptId] = useState(null),
     [matches, setMatches] = useState([]),
@@ -411,6 +412,10 @@ export default function Home() {
       const result = await api("/rest/v1/rpc/finalize_assessment", {
         method: "POST",
         body: JSON.stringify({ p_attempt_id: attempt.id }),
+      });
+      await api("/rest/v1/rpc/set_assessment_institution_disclosure", {
+        method: "POST",
+        body: JSON.stringify({ p_attempt_id: attempt.id, p_approved: shareWithHomeInstitution }),
       });
       setAttemptId(attempt.id);
       setMatches(result);
@@ -1049,13 +1054,19 @@ export default function Home() {
                     Next
                   </button>
                 ) : (
-                  <button
+                  <div>
+                    <label style={{display:"flex",alignItems:"flex-start",gap:10,marginBottom:14,maxWidth:540}}>
+                      <input type="checkbox" checked={shareWithHomeInstitution} onChange={e=>setShareWithHomeInstitution(e.target.checked)} />
+                      <span>I authorize CompassU to email my complete assessment results to the designated representative of my home institution. This is optional.</span>
+                    </label>
+                    <button
                     className="btn primary"
                     disabled={busy}
                     onClick={finishAssessment}
                   >
                     {busy ? "Charting…" : "Reveal My Roadmap"}
-                  </button>
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
