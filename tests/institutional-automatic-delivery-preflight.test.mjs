@@ -37,3 +37,16 @@ test('blocks incomplete attempts and inactive recipient addresses',()=>{
  assert.equal(prepareAutomaticInstitutionalDelivery({...args,attempt:{...attempt,status:'in_progress'}}).ready,false);
  assert.equal(prepareAutomaticInstitutionalDelivery({...args,recipients:[{...recipients[0],active:false}]}).ready,false);
 });
+
+test('blocks ambiguous recipient configuration',()=>{
+ const result=prepareAutomaticInstitutionalDelivery({...args,recipients:[...recipients,{institution,email:'second@example.edu',active:true}]});
+ assert.equal(result.ready,false);
+ assert.equal(result.reason,'multiple_institutional_recipients_require_resolution');
+});
+test('blocks malformed completion timestamps even when both dates are invalid',()=>{
+ const result=prepareAutomaticInstitutionalDelivery({...args,
+  attempt:{...attempt,completed_at:'not-a-date'},
+  report:{...report,completed_at:'also-not-a-date'}});
+ assert.equal(result.ready,false);
+ assert.equal(result.reason,'verified_complete_report_missing');
+});
