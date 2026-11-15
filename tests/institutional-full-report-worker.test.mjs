@@ -165,3 +165,39 @@ test('authorization revoked during report loading prevents sending',async()=>{
  assert.equal(sent,false);
  assert.equal(db.updates[0].last_error_code,'authorization_denied');
 });
+
+test('recipient deactivated while report loads cannot receive email',async()=>{
+ const db=fakeDb(rows);
+ const originalFrom=db.from;
+ let recipientReads=0,sent=false;
+ db.from=function(table){
+  if(table==='institution_assessment_recipients'){
+   recipientReads++;
+   if(recipientReads>1){
+    const query={select(){return query;},eq(){return query;},
+      async maybeSingle(){return {data:{
+        ...rows.institution_assessment_recipients,active:false,
+      },error:null};}};
+    return query;
+   }
+  }
+  return originalFrom(table);
+ };
+ const sections=Object.fromEntries([
+   'personalityTraits','careerClusters','recommendedMajors','careerOptions',
+   'academicStrengths','values','collegeDestinations','recommendedCourses',
+   'whyThisPathPointsNorth',
+ ].map(key=>[key,'Synthetic '+key]));
+ const result=await processClaimedInstitutionalJob({db,job,
+  loadCompletedStudentReport:async({attemptId,studentUserId})=>({
+   attemptId,studentUserId,completedAt:rows.assessment_attempts.completed_at,
+   studentName:'Synthetic Student',institutionName:'Example College',
+   tenantInstitutionId:'institution-1',sections,
+  }),
+  sendEmail:async()=>{sent=true;return {id:'unexpected'};},
+ });
+ assert.equal(recipientReads,2);
+ assert.equal(result.status,'skipped');
+ assert.equal(sent,false);
+ assert.equal(db.updates[0].last_error_code,'authorization_denied');
+});
