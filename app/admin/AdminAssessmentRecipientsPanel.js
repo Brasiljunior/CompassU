@@ -6,6 +6,8 @@ const validEmail=v=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 export default function AdminAssessmentRecipientsPanel(){
  const [institutions,setInstitutions]=useState([]);
  const [records,setRecords]=useState([]);
+ const [authorizations,setAuthorizations]=useState([]);
+ const [authorizationReference,setAuthorizationReference]=useState('');
  const [institution,setInstitution]=useState('');
  const [email,setEmail]=useState('');
  const [message,setMessage]=useState('');
@@ -21,12 +23,14 @@ export default function AdminAssessmentRecipientsPanel(){
  async function load(){
   if(!session()?.access_token)return;
   try{
-   const [assigned,recipients]=await Promise.all([
+   const [assigned,recipients,approvals]=await Promise.all([
     fetch(`${URL}/rest/v1/account_institutions?select=institution&institution=not.is.null`,{headers:headers()}).then(async r=>{if(!r.ok)throw Error('Unable to load home institutions');return r.json()}),
-    rpc('get_institution_assessment_recipients')
+    rpc('get_institution_assessment_recipients'),
+    rpc('get_institution_assessment_delivery_authorizations')
    ]);
    setInstitutions([...new Set(assigned.map(r=>r.institution?.trim()).filter(Boolean))].sort());
    setRecords(Array.isArray(recipients)?recipients:[]);
+   setAuthorizations(Array.isArray(approvals)?approvals:[]);
    setMessage('');
   }catch(e){setMessage(e.message)}
  }
@@ -37,6 +41,16 @@ export default function AdminAssessmentRecipientsPanel(){
   setBusy(true);
   try{await rpc('set_institution_assessment_recipient',{p_institution:institution,p_email:address,p_active:true});setEmail('');await load();setMessage('Assessment recipient saved. Automatic delivery will begin only when the delivery feature is enabled.')}
   catch(e){setMessage(e.message)}finally{setBusy(false)}
+ }
+ async function configureAuthorization(approved){
+  if(!institution){setMessage('Select an institution first.');return;}
+  if(approved&&!authorizationReference.trim()){setMessage('Enter the institutional authorization reference before enabling delivery.');return;}
+  setBusy(true);
+  try{
+   await rpc('set_institution_assessment_delivery_authorization',{p_institution:institution,p_approved:approved,p_authorization_reference:approved?authorizationReference.trim():null});
+   await load();
+   setMessage(approved?'Institutional assessment delivery authorized for future assessment completions.':'Institutional assessment delivery disabled.');
+  }catch(e){setMessage(e.message)}finally{setBusy(false)}
  }
  async function remove(record){
   if(!window.confirm(`Remove ${record.email} from ${record.institution} assessment recipients?`))return;
@@ -51,6 +65,15 @@ export default function AdminAssessmentRecipientsPanel(){
    <label>Home institution<br/><select value={institution} onChange={e=>setInstitution(e.target.value)} style={{padding:10,minWidth:240}}><option value=''>Select institution</option>{institutions.map(name=><option key={name}>{name}</option>)}</select></label>
    <label>Institutional representative email<br/><input type='email' value={email} onChange={e=>setEmail(e.target.value)} placeholder='representative@college.edu' style={{padding:10,minWidth:260}}/></label>
    <button disabled={busy} onClick={save} style={{padding:12,background:'#2f6fed',color:'white',borderRadius:8}}>Save Recipient</button>
+  </div>
+  <div style={{marginTop:20,padding:16,border:'1px solid #e3e8f2',borderRadius:10}}>
+   <h3>Automatic assessment email delivery</h3>
+   <p>Institutional delivery status for the selected institution: <strong>{authorizations.find(a=>a.institution_name.toLowerCase()===institution.toLowerCase())?.approved?'Authorized':'Not authorized'}</strong>. Authorization applies to assessments completed after approval.</p>
+   <label>Institutional authorization reference<br/><input value={authorizationReference} onChange={e=>setAuthorizationReference(e.target.value)} placeholder='Agreement or authorization reference' style={{padding:10,minWidth:300}}/></label>
+   <div style={{display:'flex',gap:10,marginTop:12}}>
+    <button disabled={busy||!institution} onClick={()=>configureAuthorization(true)}>Enable automatic delivery</button>
+    <button disabled={busy||!institution} onClick={()=>configureAuthorization(false)}>Disable delivery</button>
+   </div>
   </div>
   {message&&<p role='status'>{message}</p>}
   <h3>Saved recipients</h3>
