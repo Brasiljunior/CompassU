@@ -84,3 +84,32 @@ test('full report mode refuses delivery without a trusted complete snapshot', as
   assert.equal(db.reads.includes('institution_assessment_recipients'), false);
   assert.equal(db.reads.includes('institution_assessment_delivery_jobs'), false);
 });
+
+test('full report mode rejects malformed snapshot before recipient lookup', async () => {
+  const db = fakeDb('full');
+  const originalFrom = db.from;
+  db.from = function(table) {
+    if (table === 'institution_assessment_full_report_snapshots') {
+      db.reads.push(table);
+      return {select(){return this;},eq(){return this;},
+        async maybeSingle(){return {data:{
+          attempt_id:'attempt-1',student_user_id:'student-1',
+          tenant_institution_id:'tenant-1',completed_at:'2026-11-12T00:00:00Z',
+          student_name:'Synthetic\\nBcc: outsider@example.edu',
+          institution_name:'Example College',
+          sections:Object.fromEntries([
+            'personalityTraits','careerClusters','recommendedMajors','careerOptions',
+            'academicStrengths','values','collegeDestinations','recommendedCourses',
+            'whyThisPathPointsNorth',
+          ].map(key=>[key,'Synthetic '+key])),
+        },error:null};}};
+    }
+    return originalFrom(table);
+  };
+  const result = await enqueueInstitutionalAssessmentDelivery({
+    db,attemptId:'attempt-1',studentTenantId:'tenant-1',
+  });
+  assert.deepEqual(result,{queued:0,reason:'complete_report_snapshot_invalid'});
+  assert.equal(db.reads.includes('institution_assessment_recipients'),false);
+  assert.equal(db.reads.includes('institution_assessment_delivery_jobs'),false);
+});
