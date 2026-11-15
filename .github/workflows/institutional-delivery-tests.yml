@@ -1,0 +1,26 @@
+name: Institutional delivery unit tests
+
+on:
+  push:
+    branches:
+      - feature/institutional-assessment-delivery
+    paths:
+      - 'lib/institutional*.mjs'
+      - 'tests/institutional-*.test.mjs'
+      - '.github/workflows/institutional-delivery-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  institutional-delivery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run institutional delivery tests
+        run: node --test tests/institutional-*.test.mjs
