@@ -24,7 +24,7 @@ test('snapshot writer rejects invalid email headers before persistence',async()=
   db,attemptId:'attempt-1',
   generateReport:async()=>({
    attemptId:'attempt-1',studentUserId:'student-1',tenantInstitutionId:'institution-1',
-   completedAt:'2026-11-14T20:00:00Z',studentName:'Synthetic\\nBcc: outsider@example.edu',
+   completedAt:'2026-11-14T20:00:00Z',studentName:'Synthetic\nBcc: outsider@example.edu',
    institutionName:'Example College',sections,
   }),
  }),/Invalid email header field/);
