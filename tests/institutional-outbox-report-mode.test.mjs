@@ -36,13 +36,13 @@ function fakeDb(mode) {
   return db;
 }
 
-for (const mode of ['full', 'both']) {
+for (const mode of ['both']) {
   test('outbox refuses unsupported ' + mode + ' report mode before reading recipients', async () => {
     const db = fakeDb(mode);
     const result = await enqueueInstitutionalAssessmentDelivery({
       db, attemptId: 'attempt-1', studentTenantId: 'tenant-1',
     });
-    assert.deepEqual(result, { queued: 0, reason: 'report_mode_not_supported_yet' });
+    assert.deepEqual(result, { queued: 0, reason: 'report_mode_not_supported' });
     assert.equal(db.reads.includes('institution_assessment_recipients'), false);
     assert.equal(db.reads.includes('institution_assessment_delivery_jobs'), false);
   });
@@ -73,4 +73,14 @@ test('outbox rejects incomplete institutional affiliation evidence before consen
   });
   assert.deepEqual(result, { queued: 0, reason: 'student_affiliation_not_verified' });
   assert.equal(db.reads.includes('institution_assessment_authorizations'), false);
+});
+
+test('full report mode refuses delivery without a trusted complete snapshot', async () => {
+  const db = fakeDb('full');
+  const result = await enqueueInstitutionalAssessmentDelivery({
+    db, attemptId: 'attempt-1', studentTenantId: 'tenant-1',
+  });
+  assert.deepEqual(result, { queued: 0, reason: 'complete_report_snapshot_unavailable' });
+  assert.equal(db.reads.includes('institution_assessment_recipients'), false);
+  assert.equal(db.reads.includes('institution_assessment_delivery_jobs'), false);
 });
