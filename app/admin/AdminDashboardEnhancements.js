@@ -15,9 +15,10 @@ import AdminAnalyticsPanel from './AdminAnalyticsPanel';
 import AdminTrendAnalyticsPanel from './AdminTrendAnalyticsPanel';
 import AdminExecutiveInsightsPanel from './AdminExecutiveInsightsPanel';
 import AdminMonthlyReportingPanel from './AdminMonthlyReportingPanel';
+import AdminAssessmentRecipientsPanel from './AdminAssessmentRecipientsPanel';
 import AdminMonthlySendNowPanel from './AdminMonthlySendNowPanel';
 import AdminAccessibilityEnhancer from './AdminAccessibilityEnhancer';
 
 
-export default function AdminDashboardEnhancements({children}){const path=usePathname();if(path!=='/admin')return children;return <><AdminFinanceLauncher/><AdminAccessibilityEnhancer/><AdminSupabaseFetchGuard/><Admin50kConsoleRouter/><AdminActivityTrendRepair/><Admin50kPagingEnhancer/><Admin50kOperationsEnhancer/><Admin50kInstitutionFileSync/><Admin50kInstitutionBridge/><AdminInstitutionEnhancer/>{children}<AdminAnalyticsPanel/><AdminTrendAnalyticsPanel/><AdminExecutiveInsightsPanel/><AdminMonthlyReportingPanel/><AdminMonthlySendNowPanel/><AdminForgotPasswordLink/><BatchInvite500/></>}
+export default function AdminDashboardEnhancements({children}){const path=usePathname();if(path!=='/admin')return children;return <><AdminFinanceLauncher/><AdminAccessibilityEnhancer/><AdminSupabaseFetchGuard/><Admin50kConsoleRouter/><AdminActivityTrendRepair/><Admin50kPagingEnhancer/><Admin50kOperationsEnhancer/><Admin50kInstitutionFileSync/><Admin50kInstitutionBridge/><AdminInstitutionEnhancer/>{children}<AdminAnalyticsPanel/><AdminTrendAnalyticsPanel/><AdminExecutiveInsightsPanel/><AdminMonthlyReportingPanel/><AdminAssessmentRecipientsPanel/><AdminMonthlySendNowPanel/><AdminForgotPasswordLink/><BatchInvite500/></>}
 
