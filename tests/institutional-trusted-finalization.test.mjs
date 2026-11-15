@@ -20,3 +20,23 @@ test('trusted completion orchestration rejects missing privileged database', asy
     /Trusted institutional finalization context required/,
   );
 });
+
+test('unverified completion cannot generate a report or queue delivery', async () => {
+  let generated=false;
+  let touchedOutbox=false;
+  const db={from(table){
+    if(table==='institution_assessment_delivery_jobs') touchedOutbox=true;
+    const query={
+      select(){return query;},eq(){return query;},
+      async maybeSingle(){return {data:null,error:null};},
+    };
+    return query;
+  }};
+  const result=await finalizeInstitutionalAssessmentDelivery({
+    db,attemptId:'synthetic-attempt',completedUserId:'synthetic-user',
+    generateReport:async()=>{generated=true;throw new Error('must not generate');},
+  });
+  assert.deepEqual(result,{queued:0,stage:'affiliation',reason:'assessment_not_completed_or_owner_mismatch'});
+  assert.equal(generated,false);
+  assert.equal(touchedOutbox,false);
+});
