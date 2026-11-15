@@ -118,7 +118,7 @@ test('unsafe report header fails permanently without sending',async()=>{
   const result=await processClaimedInstitutionalJob({db,job,
     loadCompletedStudentReport:async({attemptId,studentUserId})=>({
       attemptId,studentUserId,completedAt:rows.assessment_attempts.completed_at,
-      studentName:'Synthetic\\nBcc: outsider@example.edu',institutionName:'Example College',
+      studentName:'Synthetic\nBcc: outsider@example.edu',institutionName:'Example College',
       tenantInstitutionId:'institution-1',sections,
     }),
     sendEmail:async()=>{sent=true;return {id:'unexpected'};},
