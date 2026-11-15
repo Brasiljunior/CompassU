@@ -185,7 +185,6 @@ export default function Home() {
     [questions, setQuestions] = useState([]),
     [questionIndex, setQuestionIndex] = useState(0),
     [answers, setAnswers] = useState({}),
-    [shareWithHomeInstitution, setShareWithHomeInstitution] = useState(false),
     [attempt, setAttempt] = useState(null),
     [attemptId, setAttemptId] = useState(null),
     [matches, setMatches] = useState([]),
@@ -412,10 +411,6 @@ export default function Home() {
       const result = await api("/rest/v1/rpc/finalize_assessment", {
         method: "POST",
         body: JSON.stringify({ p_attempt_id: attempt.id }),
-      });
-      await api("/rest/v1/rpc/set_assessment_institution_disclosure", {
-        method: "POST",
-        body: JSON.stringify({ p_attempt_id: attempt.id, p_approved: shareWithHomeInstitution }),
       });
       setAttemptId(attempt.id);
       setMatches(result);
@@ -1055,10 +1050,9 @@ export default function Home() {
                   </button>
                 ) : (
                   <div>
-                    <label style={{display:"flex",alignItems:"flex-start",gap:10,marginBottom:14,maxWidth:540}}>
-                      <input type="checkbox" checked={shareWithHomeInstitution} onChange={e=>setShareWithHomeInstitution(e.target.checked)} />
-                      <span>I authorize CompassU to email my complete assessment results to the designated representative of my home institution. This is optional.</span>
-                    </label>
+                    <p className="muted" style={{maxWidth:540,marginBottom:14}}>
+                      For institution-sponsored assessments, CompassU may automatically share completed assessment results with your home institution's designated representative, subject to the institution's applicable privacy notices and agreements.
+                    </p>
                     <button
                     className="btn primary"
                     disabled={busy}
