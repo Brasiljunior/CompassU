@@ -50,3 +50,15 @@ test('blocks malformed completion timestamps even when both dates are invalid',(
  assert.equal(result.ready,false);
  assert.equal(result.reason,'verified_complete_report_missing');
 });
+
+test('blocks authorization dated after the assessment was completed',()=>{
+ const result=prepareAutomaticInstitutionalDelivery({...args,
+  institutionAuthorization:{...institutionAuthorization,approved_at:'2026-11-16T00:00:00Z'}});
+ assert.equal(result.ready,false);
+ assert.equal(result.reason,'institutional_disclosure_authorization_missing');
+});
+test('blocks invalid authorization timestamps',()=>{
+ const result=prepareAutomaticInstitutionalDelivery({...args,
+  institutionAuthorization:{...institutionAuthorization,approved_at:'not-a-date'}});
+ assert.equal(result.ready,false);
+});
