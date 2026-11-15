@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/billing",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/institutional-delivery",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
