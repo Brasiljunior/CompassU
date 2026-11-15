@@ -1,0 +1,39 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { prepareAutomaticInstitutionalDelivery } from '../lib/institutionalAutomaticDeliveryPreflight.mjs';
+
+const institution='Southwest Tennessee Community College';
+const completedAt='2026-11-15T17:00:00Z';
+const attempt={id:'attempt-1',user_id:'student-1',status:'completed',completed_at:completedAt};
+const assignments=[{email:'student@example.edu',institution,tenant_institution_id:null}];
+const recipients=[{institution,email:'representative@example.edu',active:true}];
+const institutionAuthorization={institution_name:institution,approved:true,approved_at:completedAt,revoked_at:null,authorization_reference:'signed-institution-agreement'};
+const sections=Object.fromEntries(['personalityTraits','careerClusters','recommendedMajors','careerOptions','academicStrengths','values','collegeDestinations','recommendedCourses','whyThisPathPointsNorth'].map(k=>[k,'Verified student-specific '+k]));
+const report={attempt_id:attempt.id,student_user_id:attempt.user_id,completed_at:completedAt,institution_name:institution,sections};
+const args={attempt,accountEmail:'student@example.edu',assignments,recipients,institutionAuthorization,report,studentName:'Test Student'};
+
+test('prepares all nine report sections for the designated institution recipient',()=>{
+ const result=prepareAutomaticInstitutionalDelivery(args);
+ assert.equal(result.ready,true);
+ assert.deepEqual(result.recipientEmails,['representative@example.edu']);
+ for(const section of Object.values(sections)) assert.ok(result.text.includes(section));
+ assert.ok(result.subject.includes('Test Student'));
+});
+test('blocks delivery when institutional authorization is absent or revoked',()=>{
+ for(const authorization of [null,{...institutionAuthorization,approved:false},{...institutionAuthorization,revoked_at:completedAt},{...institutionAuthorization,authorization_reference:''}]){
+  const result=prepareAutomaticInstitutionalDelivery({...args,institutionAuthorization:authorization});
+  assert.equal(result.ready,false);
+  assert.equal(result.reason,'institutional_disclosure_authorization_missing');
+ }
+});
+test('blocks delivery for a report belonging to another student or assessment',()=>{
+ for(const bad of [{...report,student_user_id:'another-student'},{...report,attempt_id:'another-attempt'},{...report,institution_name:'Other College'}]){
+  const result=prepareAutomaticInstitutionalDelivery({...args,report:bad});
+  assert.equal(result.ready,false);
+  assert.equal(result.reason,'verified_complete_report_missing');
+ }
+});
+test('blocks incomplete attempts and inactive recipient addresses',()=>{
+ assert.equal(prepareAutomaticInstitutionalDelivery({...args,attempt:{...attempt,status:'in_progress'}}).ready,false);
+ assert.equal(prepareAutomaticInstitutionalDelivery({...args,recipients:[{...recipients[0],active:false}]}).ready,false);
+});
