@@ -95,7 +95,7 @@ test('full report mode rejects malformed snapshot before recipient lookup', asyn
         async maybeSingle(){return {data:{
           attempt_id:'attempt-1',student_user_id:'student-1',
           tenant_institution_id:'tenant-1',completed_at:'2026-11-12T00:00:00Z',
-          student_name:'Synthetic\\nBcc: outsider@example.edu',
+          student_name:'Synthetic\nBcc: outsider@example.edu',
           institution_name:'Example College',
           sections:Object.fromEntries([
             'personalityTraits','careerClusters','recommendedMajors','careerOptions',
