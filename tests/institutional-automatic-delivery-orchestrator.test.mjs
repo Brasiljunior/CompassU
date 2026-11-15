@@ -16,7 +16,7 @@ const context={
  studentName:'Test Student'
 };
 const makeDeps=(overrides={})=>({
- attemptId,loadTrustedContext:async()=>context,fromAddress:'CompassU <results@example.com>',
+ attemptId,completionEvent:{source:'trusted_assessment_finalization',attemptId,isNewCompletion:true},loadTrustedContext:async()=>context,fromAddress:'CompassU <results@example.com>',
  claimDelivery:async()=>({claimed:true}),recordDelivery:async()=>{},
  sendEmail:async()=>({id:'resend-message-1'}),...overrides
 });
@@ -78,4 +78,26 @@ test('records uncertain provider outcome without automatically retrying',async()
  }));
  assert.equal(result.status,'failed');assert.equal(sends,1);
  assert.equal(records[0].error,'provider_outcome_uncertain');
+});
+
+test('never backfills historical completed test assessments',async()=>{
+ let reads=0,sends=0;
+ const result=await deliverAutomaticInstitutionalReport(makeDeps({
+  completionEvent:{source:'trusted_assessment_finalization',attemptId,isNewCompletion:false},
+  loadTrustedContext:async()=>{reads++;return context},
+  sendEmail:async()=>{sends++;return{id:'message'}}
+ }));
+ assert.equal(result.status,'blocked');
+ assert.equal(result.reason,'fresh_completion_event_required');
+ assert.equal(reads,0);assert.equal(sends,0);
+});
+test('rejects a browser-asserted or mismatched completion event',async()=>{
+ for(const completionEvent of [
+  {source:'browser',attemptId,isNewCompletion:true},
+  {source:'trusted_assessment_finalization',attemptId:'other',isNewCompletion:true},
+  null
+ ]){
+  const result=await deliverAutomaticInstitutionalReport(makeDeps({completionEvent}));
+  assert.equal(result.status,'blocked');
+ }
 });
