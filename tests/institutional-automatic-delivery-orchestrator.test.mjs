@@ -101,3 +101,26 @@ test('rejects a browser-asserted or mismatched completion event',async()=>{
   assert.equal(result.status,'blocked');
  }
 });
+
+test('does not claim or send when trusted data loading fails',async()=>{
+ let claims=0,sends=0;
+ const result=await deliverAutomaticInstitutionalReport(makeDeps({
+  loadTrustedContext:async()=>{throw new Error('database offline')},
+  claimDelivery:async()=>{claims++;return{claimed:true}},
+  sendEmail:async()=>{sends++;return{id:'message'}}
+ }));
+ assert.equal(result.status,'blocked');
+ assert.equal(result.reason,'trusted_context_unavailable');
+ assert.equal(claims,0);assert.equal(sends,0);
+});
+test('does not send when trusted data is absent or malformed',async()=>{
+ for(const contextValue of [null,{},'invalid']){
+  let sends=0;
+  const result=await deliverAutomaticInstitutionalReport(makeDeps({
+   loadTrustedContext:async()=>contextValue,
+   sendEmail:async()=>{sends++;return{id:'message'}}
+  }));
+  assert.equal(result.status,'blocked');
+  assert.equal(sends,0);
+ }
+});
