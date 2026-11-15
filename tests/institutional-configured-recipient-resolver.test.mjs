@@ -28,3 +28,12 @@ test('ignores inactive recipients and removes duplicates',()=>{
  recipients:[...recipients,{...recipients[0],email:'REPRESENTATIVE@example.edu'},{...recipients[0],email:'inactive@example.edu',active:false}]});
  assert.deepEqual(result.recipientEmails,['representative@example.edu']);
 });
+
+test('supports legacy home-institution assignment without tenant ID',()=>{
+ const legacy=[{email:'student@example.edu',institution:'Southwest Tennessee Community College',tenant_institution_id:null}];
+ const result=resolveConfiguredAssessmentRecipients({attempt,accountEmail:'student@example.edu',assignments:legacy,recipients});
+ assert.equal(result.eligible,true);
+ assert.equal(result.institutionName,'Southwest Tennessee Community College');
+ assert.equal(result.tenantInstitutionId,null);
+ assert.deepEqual(result.recipientEmails,['representative@example.edu']);
+});
