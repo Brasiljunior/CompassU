@@ -40,3 +40,28 @@ test('unverified completion cannot generate a report or queue delivery', async (
   assert.equal(generated,false);
   assert.equal(touchedOutbox,false);
 });
+
+test('disabled full-report mode cannot generate a sensitive report',async()=>{
+ let generated=false;
+ const rows={
+  assessment_attempts:{id:'synthetic-attempt',user_id:'synthetic-user',
+   status:'completed',completed_at:new Date().toISOString()},
+  institution_student_assignments:{user_id:'synthetic-user',tenant_institution_id:'synthetic-tenant',
+   assigned_at:'2026-11-01T00:00:00Z',verified_at:'2026-11-01T00:00:00Z',
+   evidence_reference:'synthetic-evidence'},
+  institution_assessment_affiliations:{attempt_id:'synthetic-attempt',
+   tenant_institution_id:'synthetic-tenant',evidence_reference:'synthetic-evidence'},
+  institution_assessment_delivery_settings:{enabled:false,report_mode:'full'},
+ };
+ const db={from(table){
+  const query={select(){return query;},eq(){return query;},limit(){return query;},
+   async maybeSingle(){return {data:rows[table]??null,error:null};}};
+  return query;
+ }};
+ const result=await finalizeInstitutionalAssessmentDelivery({
+  db,attemptId:'synthetic-attempt',completedUserId:'synthetic-user',
+  generateReport:async()=>{generated=true;throw new Error('must not generate');},
+ });
+ assert.equal(generated,false);
+ assert.equal(result.queued,0);
+});
