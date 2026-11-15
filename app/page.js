@@ -1051,7 +1051,7 @@ export default function Home() {
                 ) : (
                   <div>
                     <p className="muted" style={{maxWidth:540,marginBottom:14}}>
-                      For institution-sponsored assessments, CompassU may automatically share completed assessment results with your home institution's designated representative, subject to the institution's applicable privacy notices and agreements.
+                      For institution-sponsored assessments, CompassU automatically emails completed assessment results to your home institution’s designated representative when institutional delivery is authorized and configured.
                     </p>
                     <button
                     className="btn primary"
