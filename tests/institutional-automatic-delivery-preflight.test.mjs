@@ -62,3 +62,16 @@ test('blocks invalid authorization timestamps',()=>{
   institutionAuthorization:{...institutionAuthorization,approved_at:'not-a-date'}});
  assert.equal(result.ready,false);
 });
+
+test('blocks missing or empty full-report sections without throwing',()=>{
+ for(const missing of ['personalityTraits','careerClusters','recommendedMajors','careerOptions','academicStrengths','values','collegeDestinations','recommendedCourses','whyThisPathPointsNorth']){
+  const partial={...sections,[missing]:''};
+  const result=prepareAutomaticInstitutionalDelivery({...args,report:{...report,sections:partial}});
+  assert.deepEqual(result,{ready:false,reason:'verified_complete_report_missing'});
+ }
+});
+test('blocks missing student name before any email is prepared',()=>{
+ const result=prepareAutomaticInstitutionalDelivery({...args,studentName:''});
+ assert.equal(result.ready,false);
+ assert.equal(result.reason,'verified_complete_report_missing');
+});
