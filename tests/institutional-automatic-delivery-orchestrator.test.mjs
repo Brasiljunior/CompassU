@@ -61,3 +61,21 @@ test('rejects malformed attempt IDs before reading student data',async()=>{
  }));
  assert.equal(result.status,'blocked');assert.equal(read,0);
 });
+
+test('requires reconciliation when provider and status recording both fail',async()=>{
+ const result=await deliverAutomaticInstitutionalReport(makeDeps({
+  sendEmail:async()=>{throw new Error('network timeout')},
+  recordDelivery:async()=>{throw new Error('database unavailable')}
+ }));
+ assert.equal(result.status,'reconciliation_required');
+ assert.equal(result.reason,'provider_and_recording_outcomes_uncertain');
+});
+test('records uncertain provider outcome without automatically retrying',async()=>{
+ let sends=0;const records=[];
+ const result=await deliverAutomaticInstitutionalReport(makeDeps({
+  sendEmail:async()=>{sends++;throw new Error('network timeout')},
+  recordDelivery:async item=>records.push(item)
+ }));
+ assert.equal(result.status,'failed');assert.equal(sends,1);
+ assert.equal(records[0].error,'provider_outcome_uncertain');
+});
